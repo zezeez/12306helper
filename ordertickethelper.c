@@ -1,7 +1,5 @@
 #include "ordertickethelper.h"
 
-#define BASEURL "https://kyfw.12306.cn/otn/"
-
 static CURL *curl;
 static CURLcode res;
 static struct curl_slist *host_list = NULL;
@@ -10,6 +8,7 @@ static struct station_name *s_name = NULL;
 static struct curl_slist *nxt;
 static struct passenger_info pinfo[16];
 static struct ticket_info tinfo;
+static struct screen_param scr;
 const char *s_station = "广州南";
 const char *e_station = "梧州南";
 
@@ -23,6 +22,7 @@ int main(int argc, char *argv[])
     }
     s_name = load_stations_name();
 
+    init_user_screen();
     init_curl();
     init_buffer();
 
@@ -38,55 +38,95 @@ int main(int argc, char *argv[])
 
 int init_buffer()
 {
-	chunk.memory = (char *)malloc(1024 * 1024 * 4);
-	if(chunk.memory == NULL) {
-	    perror("malloc: ");
-	    return -1;
-	}
-	chunk.memory[0] = 0;
-	chunk.size = 0;
-	chunk.allocated_size = 1024 * 1024 * 4;
-	return 0;
+    chunk.memory = (char *)malloc(1024 * 1024 * 4);  /* allocate 4k memory */
+    if(chunk.memory == NULL) {
+	perror("malloc: ");
+	return -1;
+    }
+    chunk.memory[0] = 0;
+    chunk.size = 0;
+    chunk.allocated_size = 1024 * 1024 * 4;
+    return 0;
 }
 
 int init_curl()
 {
-	curl_global_init(CURL_GLOBAL_ALL);
-	/* get a curl handle */
-	curl = curl_easy_init();
-	curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
-	curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
-	//curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
+    curl_global_init(CURL_GLOBAL_ALL);
+    /* get a curl handle */
+    curl = curl_easy_init();
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
+    //curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
 #ifdef USE_COOKIE
-	curl_easy_setopt(curl, CURLOPT_COOKIEFILE, "./kyfw.12306.cn.cookie");
-	curl_easy_setopt(curl, CURLOPT_COOKIEJAR, "./kyfw.12306.cn.cookie");
-	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_memory_callback);
-	curl_easy_setopt(curl, CURLOPT_WRITEDATA, &chunk);
+    curl_easy_setopt(curl, CURLOPT_COOKIEFILE, "./kyfw.12306.cn.cookie");
+    curl_easy_setopt(curl, CURLOPT_COOKIEJAR, "./kyfw.12306.cn.cookie");
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_memory_callback);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &chunk);
 #endif
-	host_list = curl_slist_append(NULL, "kyfw.12306.cn:443:183.61.26.197:443");
-	//host_list = curl_slist_append(host_list, "kyfw.12306.cn:443:36.102.235.206:443");
-	//host_list = curl_slist_append(host_list, "kyfw.12306.cn:443:27.148.151.214:443");
-	nxt = host_list;
+    host_list = curl_slist_append(NULL, "kyfw.12306.cn:443:183.61.26.197:443");
+    //host_list = curl_slist_append(host_list, "kyfw.12306.cn:443:36.102.235.206:443");
+    //host_list = curl_slist_append(host_list, "kyfw.12306.cn:443:27.148.151.214:443");
+    nxt = host_list;
 
-	//curl_easy_setopt(curl, CURLOPT_NOBODY, 1l);
-	//perform_request("https://kyfw.12306.cn/otn/login/init", GET, NULL, host_list);
-	return 0;
+    //curl_easy_setopt(curl, CURLOPT_NOBODY, 1l);
+    //perform_request("https://kyfw.12306.cn/otn/login/init", GET, NULL, host_list);
+    return 0;
+}
+
+int init_user_screen()
+{
+    initscr();
+    getmaxyx(stdscr, scr.rows, scr.cols);
+    //scr.info = newwin(scr.rows / 10 - 3, scr.cols - 3, 0, 0);
+    //scr.output = newwin(scr.rows * 7 / 10 - 3, scr.cols - 3, scr.rows / 10 + 3, 0);
+    //scr.status = newwin(scr.rows * 2 / 10 - 3, scr.cols - 3, scr.rows * 8 / 10 + 3, 0);
+    scr.info = newwin(5, 10, 0, 0);
+    scr.output = newwin(10, 10, 8, 0);
+    scr.status = newwin(5, 10, 11, 0);
+    wborder(scr.info, '|', '|', '-', '-', '+', '+', '+', '+');
+    wborder(scr.output, '|', '|', '-', '-', '+', '+', '+', '+');
+    wborder(scr.status, '|', '|', '-', '-', '+', '+', '+', '+');
+    wrefresh(scr.info);
+    wrefresh(scr.output);
+    wrefresh(scr.status);
+    return 0;
+}
+
+int destroy_win()
+{
+    /* box(local_win, ' ', ' '); : This won't produce the desired
+     * result of erasing the window. It will leave it's four corners
+     * and so an ugly remnant of window.
+     */
+    wborder(scr.info, ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ');
+    wborder(scr.output, ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ');
+    wborder(scr.status, ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ');
+    wrefresh(scr.info);
+    wrefresh(scr.output);
+    wrefresh(scr.status);
+    delwin(scr.info);
+    delwin(scr.output);
+    delwin(scr.status);
+
+    return 0;
 }
 
 int clean_curl()
 {
-	curl_slist_free_all(host_list);
-	curl_easy_cleanup(curl);
-	curl_global_cleanup();
-	return 0;
+    curl_slist_free_all(host_list);
+    curl_easy_cleanup(curl);
+    curl_global_cleanup();
+    return 0;
 }
 
 int do_cleanup()
 {
-    	clean_curl();
-	free(chunk.memory);
-	free_ptr_array((void **)s_name);
-	return 0;
+    destroy_win();
+    endwin();
+    clean_curl();
+    free(chunk.memory);
+    free_ptr_array((void **)s_name);
+    return 0;
 }
 
 int parse_train_info(const char *s, char (*t_buffer)[512], struct train_info *ti, struct common_list *cache)
@@ -102,7 +142,10 @@ int parse_train_info(const char *s, char (*t_buffer)[512], struct train_info *ti
     if(!cJSON_IsTrue(status)) {
 	cJSON *msg = cJSON_GetObjectItem(response, "messages");
 	if(!cJSON_IsNull(msg)) {
-	    printf("error: %s\n", cJSON_Print(msg));
+	    //printf("error: %s\n", cJSON_Print(msg));
+	    char *err_msg = cJSON_Print(msg);
+	    wprintw(scr.status, "error: %s\n", err_msg);
+	    free(err_msg);
 	}
 	goto fail;
     }
@@ -178,7 +221,7 @@ start_login()
 	char post_data[64];
 
 	snprintf(url, sizeof(url), "%s", "https://kyfw.12306.cn/passport/web/login");
-	snprintf(post_data, sizeof(post_data), "%s", "username=15177667709&password=110360adl&appid=otn");
+	snprintf(post_data, sizeof(post_data), "%s", "username=test&password=test&appid=otn");
 
 	if(perform_request(url, POST, post_data, nxt) < 0) {
 	    return -1;
@@ -228,17 +271,18 @@ int user_login()
     perform_request(BASEURL"otn/login/init", GET, NULL, nxt);
 
     int ret = show_varification_code(0);
-    printf("varification ret: %d\n", ret);
     if(ret == 100) {
-    //if(show_varification_code(0) == 100) {
 	if(start_login() == 0) {
-	    printf("登陆成功\n");
+	    //printf("登陆成功\n");
+	    wprintw(scr.status, "登陆成功\n");
 	    return 0;
 	} else {
-	    printf("登陆失败\n");
+	    //printf("登陆失败\n");
+	    wprintw(scr.status, "登陆失败\n");
 	}
     } else {
-	printf("验证码校验失败\n");
+	//printf("验证码校验失败\n");
+	wprintw(scr.status, "验证码校验失败\n");
     }
     return 1;
 }
@@ -478,9 +522,11 @@ int get_passenger_dtos(const char *repeat_token)
 void print_train_info(struct train_info *info)
 {
     struct train_info *p = info;
-    printf("车次\t出发站\t到达站\t出发时间\t到达时间\t历时\t特等座\t一等座\t二等座\t高级软卧\t软卧\t动卧\t硬卧\t软座\t硬座\t无座\t其他\n");
+    //printf("车次\t出发站\t到达站\t出发时间\t到达时间\t历时\t特等座\t一等座\t二等座\t高级软卧\t软卧\t动卧\t硬卧\t软座\t硬座\t无座\t其他\n");
+    wprintw(scr.status, "车次\t出发站\t到达站\t出发时间\t到达时间\t历时\t特等座\t一等座\t二等座\t高级软卧\t软卧\t动卧\t硬卧\t软座\t硬座\t无座\t其他\n");
     while(p->train_no) {
-	printf("%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", p->station_train_code, p->from_station_telecode, 
+	//printf("%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", p->station_train_code, p->from_station_telecode, 
+	wprintw(scr.status, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", p->station_train_code, p->from_station_telecode, 
 		p->to_station_telecode, p->start_time, p->arrive_time, p->spend_time, p->swz_num, p->zy_num, p->ze_num, p->gr_num, p->rw_num,
 		p->yb_num, p->yw_num, p->rz_num, p->yz_num, p->wz_num, p->qt_num);
 	p++;
@@ -556,7 +602,7 @@ int query_ticket()
     char train_buffer[512][512];
     struct common_list *cache;
 
-    init(&cache);
+    init_list(&cache);
     //curl_easy_setopt(curl, CURLOPT_NOBODY, 0L);
 
     snprintf(url, sizeof(url), "%s", BASEURL"leftTicket/log?leftTicketDTO.train_date=2017-12-15&leftTicketDTO.from_station=IZQ&leftTicketDTO.to_station=WBZ&purpose_codes=ADULT");
@@ -584,6 +630,7 @@ int query_ticket()
 	//free_train_info(t_info);
 	sleep(3);
     }
+    clear_list(cache);
     return 1;
 }
 
@@ -600,7 +647,7 @@ int checkUserIsLogin()
     }
 
     cJSON *status, *httpstatus, *data, *flag, *root;
-    printf("checkUser: %s\n", chunk.memory);
+    //printf("checkUser: %s\n", chunk.memory);
 
     root = cJSON_Parse(chunk.memory);
     if(cJSON_IsNull(root)) {
@@ -634,7 +681,7 @@ int init_my12306()
     perform_request(url, GET, NULL, nxt);
     snprintf(url, sizeof(url), "%s", "https://kyfw.12306.cn/passport/web/auth/uamtk");
     perform_request(url, POST, (void *)"appid=otn", nxt);
-    printf("umatk: %s\n", chunk.memory);
+    //printf("umatk: %s\n", chunk.memory);
 
     cJSON *root = cJSON_Parse(chunk.memory);
     if(cJSON_IsNull(root)) {
@@ -649,7 +696,7 @@ int init_my12306()
 	    snprintf(url, sizeof(url), "%s", BASEURL"uamauthclient");
 	    snprintf(param, sizeof(param), "%s%s", "tk=", newapptk->valuestring);
 	    perform_request(url, POST, param, nxt);
-	    printf("uamauthclient: %s\n", chunk.memory);
+	    //printf("uamauthclient: %s\n", chunk.memory);
 	}
     } else {
 	return 1;
@@ -723,7 +770,7 @@ int start_submit_order_request(struct train_info *t_info)
     if(perform_request(url, POST, param, nxt) < 0) {
 	return -1;
     }
-    printf("result: %s\n", chunk.memory);
+    //printf("result: %s\n", chunk.memory);
     cJSON *root = cJSON_Parse(chunk.memory);
     if(cJSON_IsNull(root)) {
 	return 1;
@@ -753,13 +800,13 @@ int check_order_info(cJSON *json)
     curl_free(url_encode_passenger);
     curl_free(url_encode_old_passenger);
 
-    printf("checkOrderInfo param: %s\n", param);
-    printf("passenger: %s old_passenger: %s\n", passenger, old_passenger);
+    //printf("checkOrderInfo param: %s\n", param);
+    //printf("passenger: %s old_passenger: %s\n", passenger, old_passenger);
 
     if(perform_request(url, POST, param, nxt) < 0) {
 	return -1;
     }
-    printf("checkOrderInfo result: %s\n", chunk.memory);
+    //printf("checkOrderInfo result: %s\n", chunk.memory);
 
     cJSON *root = cJSON_Parse(chunk.memory);
     if(cJSON_IsNull(root)) {
@@ -902,7 +949,7 @@ int get_queue_count(cJSON *json, struct train_info *t_info)
     char url[64], param[512];
 
     get_train_date_format(json, date_format, sizeof(date_format));
-    printf("date format: %s\n", date_format);
+    //printf("date format: %s\n", date_format);
     //char *url_encode_train_date = curl_easy_escape(curl, date_format, strlen(date_format));
     
     snprintf(url, sizeof(url), "%s", BASEURL"confirmPassenger/getQueueCount");
@@ -912,11 +959,11 @@ int get_queue_count(cJSON *json, struct train_info *t_info)
 	    t_info->from_station_telecode, t_info->to_station_telecode, 
 	    tinfo.left_ticket, tinfo.train_location, 
 	    tinfo.repeat_submit_token);
-    printf("queue param: %s %s\n", date_format, param);
+    //printf("queue param: %s %s\n", date_format, param);
     if(perform_request(url, POST, param, nxt) < 0) {
 	return -1;
     }
-    printf("queue result: %s\n", chunk.memory);
+    //printf("queue result: %s\n", chunk.memory);
     cJSON *root = cJSON_Parse(chunk.memory);
     if(cJSON_IsNull(root)) {
 	return 1;
@@ -938,20 +985,23 @@ int get_queue_count(cJSON *json, struct train_info *t_info)
 	return 1;
     }
     //long ticket_num = strtol(ticket_str->valuestring, NULL, 10);
-    printf("当前余票：%s\n", ticket_str->valuestring);
+    //printf("当前余票：%s\n", ticket_str->valuestring);
+    wprintw(scr.status, "当前余票：%s\n", ticket_str->valuestring);
     cJSON *countT_str = cJSON_GetObjectItem(data, "countT");
     if(!cJSON_IsString(countT_str)) {
 	cJSON_Delete(root);
 	return 1;
     }
-    printf("当前排队人数：%s\n", countT_str->valuestring);
+    //printf("当前排队人数：%s\n", countT_str->valuestring);
+    wprintw(scr.status, "当前排队人数：%s\n", countT_str->valuestring);
     cJSON *op2_str = cJSON_GetObjectItem(data, "op_2");
     if(!cJSON_IsString(op2_str)) {
 	cJSON_Delete(root);
 	return 1;
     }
     if(strcmp(op2_str->valuestring, "true") == 0) {
-	printf("当前排队人数超过余票张数，订单提交失败\n");
+	//printf("当前排队人数超过余票张数，订单提交失败\n");
+	wprintw(scr.status, "当前排队人数超过余票张数，订单提交失败\n");
 	return 2;
     }
 
@@ -965,7 +1015,7 @@ int confirm_single_queue(cJSON *json)
     char passenger[64], old_passenger[64];
 
     snprintf(url, sizeof(url), "%s", BASEURL"confirmPassenger/confirmSingleForQueue");
-    printf("confirm_queue url: %s\n", url);
+    //printf("confirm_queue url: %s\n", url);
 
     get_passenger_tickets_for_submit(json, passenger, sizeof(passenger));
     get_old_passenger_for_submit(old_passenger, sizeof(old_passenger));
@@ -978,14 +1028,14 @@ int confirm_single_queue(cJSON *json)
 	    tinfo.repeat_submit_token);
     curl_free(url_encode_passenger);
     curl_free(url_encode_old_passenger);
-    printf("confirmPassengerSingleForQueue param: %s\n", param);
-    printf("passenger: %s\n", passenger);
-    printf("old_passenger: %s\n", old_passenger);
+    //printf("confirmPassengerSingleForQueue param: %s\n", param);
+    //printf("passenger: %s\n", passenger);
+    //printf("old_passenger: %s\n", old_passenger);
 
     if(perform_request(url, POST, param, nxt) < 0) {
 	return -1;
     }
-    printf("confirmPassengerSingleForQueue result: %s\n", chunk.memory);
+    //printf("confirmPassengerSingleForQueue result: %s\n", chunk.memory);
     cJSON *root = cJSON_Parse(chunk.memory);
     if(cJSON_IsNull(root)) {
 	return 1;
@@ -1003,7 +1053,8 @@ int confirm_single_queue(cJSON *json)
     if(!cJSON_IsTrue(submit_status)) {
 	cJSON *err_msg = cJSON_GetObjectItem(data, "errMsg");
 	if(cJSON_IsString(err_msg)) {
-	    printf("出票失败，原因：%s\n", err_msg->valuestring);
+	    //printf("出票失败，原因：%s\n", err_msg->valuestring);
+	    wprintw(scr.status, "出票失败，原因：%s\n", err_msg->valuestring);
 	}
 	return 1;
     }
@@ -1019,7 +1070,7 @@ int query_order_wait_time()
     if(perform_request(url, GET, NULL, nxt) < 0) {
 	return -1;
     }
-    printf("queryOrderWaitTime result: %s\n", chunk.memory);
+    //printf("queryOrderWaitTime result: %s\n", chunk.memory);
     cJSON *root = cJSON_Parse(chunk.memory);
     if(cJSON_IsNull(root)) {
 	return 1;
@@ -1056,7 +1107,7 @@ int result_order_for_dc_queue(const char *order_no)
     if(perform_request(url, POST, param, nxt) < 0) {
 	return -1;
     }
-    printf("resultOrderForDcQueue result: %s\n", chunk.memory);
+    //printf("resultOrderForDcQueue result: %s\n", chunk.memory);
     return 0;
 }
 

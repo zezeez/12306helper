@@ -1,6 +1,6 @@
 #include "utils.h"
 
-int init(struct common_list **l)
+int init_list(struct common_list **l)
 {
 	(*l) = (struct common_list *) malloc(sizeof(struct common_list));
 	if(*l == NULL) {
@@ -66,7 +66,7 @@ struct common_list * find(struct common_list *l, void *d, int (*func)(void *, vo
 	return NULL;  /* not found */
 }
 
-int clear(struct common_list *l)
+int clear_list(struct common_list *l)
 {
 	struct common_list *p = l;
 	struct common_list *tmp = p;

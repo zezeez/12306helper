@@ -10,12 +10,14 @@
 #include <time.h>
 #include <signal.h>
 #include <curl/curl.h>
+#include <ncurses.h>
 #include "cJSON.h"
 #include "utils.h"
 #include "global.h"
 
 #define USE_COOKIE 1
 #define TARGETDOMAIN "https://kyfw.12306.cn"
+#define BASEURL "https://kyfw.12306.cn/otn/"
 
 struct passenger_info {
     char code[4];
@@ -96,6 +98,14 @@ struct ticket_info {
     char train_location[4];
 };
 
+struct screen_param {
+    WINDOW *status;
+    WINDOW *output;
+    WINDOW *info;
+    int rows;
+    int cols;
+};
+
 int parse_train_info(const char *, char (*)[512], struct train_info *, struct common_list *);
 int perform_request(const char *, enum request_type, void *, struct curl_slist *);
 size_t write_memory_callback(void *, size_t, size_t, void *);
@@ -114,6 +124,7 @@ int passenger_initdc();
 int submit_order_request(struct train_info *);
 int init_my12306();
 int user_login();
+int init_user_screen();
 extern void *show_varification_code_main(void *);
 static void sig_handler(int);
 #endif

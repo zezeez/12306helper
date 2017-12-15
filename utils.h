@@ -22,11 +22,11 @@ struct common_list {
 	struct common_list *next;
 };
 
-int init(struct common_list **);
+int init_list(struct common_list **);
 int insert(struct common_list *, void *, size_t);
 int remove_node(struct common_list *, void *, int (*func)(void *, void *));
 struct common_list * find(struct common_list *, void *, int (*func)(void *, void *));
-int clear(struct common_list *);
+int clear_list(struct common_list *);
 
 char ** split(const char *, const char);
 int parse_peer_train(char *, void *);
