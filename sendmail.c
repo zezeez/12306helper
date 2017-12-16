@@ -48,8 +48,8 @@ int main()
         "Content-Type:multipart/mixed;boundary=\"---=_NextPart_000_0050_01C\"\r\n"  
         "Subject:=?gb2312?B?TU1NRdCt0unLtcP308q8/g==?=\r\n";  
 #endif  
-    char bodyHead[] = "From: \"gxzpljj\"<gxzpljj@163.com>\r\n"  
-        "To:  \"gxmgljj\"<gxmgljj@163.com>\r\n"  
+    char bodyHead[] = "From: \"test\"<test@163.com>\r\n"  
+        "To:  \"test\"<test@163.com>\r\n"  
         "MIME-Version:1.0\r\n"  
         "Content-Type:multipart/mixed;boundary=\"---=_NextPart_000_0050_01C\"\r\n"  
         "Subject:test\r\n"  
@@ -238,7 +238,7 @@ void sendemail(char *smtpServer, char *body)
     /* USER */  
     memset(buf, 0, 1500);  
   
-    sprintf(buf, "gxzpljj@163.com");  
+    sprintf(buf, "test@163.com");  
     memset(login, 0, 128);  
   
     base64_encode(buf, strlen(buf), login, 128);                   /* base64 */  
@@ -254,7 +254,7 @@ void sendemail(char *smtpServer, char *body)
   
     /* PASSWORD */  
     memset(buf, 0, 1500);  
-    sprintf(buf, "19940723gx");  
+    sprintf(buf, "test");  
     memset(pass, 0, 128);  
   
     base64_encode(buf, strlen(buf), pass, 128);  
@@ -271,7 +271,7 @@ void sendemail(char *smtpServer, char *body)
     /* MAIL FROM */  
   
     memset(buf, 0, 1500);  
-    sprintf(buf, "MAIL FROM: <gxzpljj@163.com>\r\n");  
+    sprintf(buf, "MAIL FROM: <test@163.com>\r\n");  
     send(sockfd, buf, strlen(buf), 0);  
   
     memset(rbuf, 0, 1500);  
@@ -280,7 +280,7 @@ void sendemail(char *smtpServer, char *body)
     printf("%s\n", rbuf);  
   
     /* rcpt to 第一个收件人 */  
-    sprintf(buf, "RCPT TO:<gxmgljj@163.com>\r\n");  
+    sprintf(buf, "RCPT TO:<test@163.com>\r\n");  
     send(sockfd, buf, strlen(buf), 0);  
   
     memset(rbuf, 0, 1500);  
