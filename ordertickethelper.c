@@ -4,13 +4,15 @@ static CURL *curl;
 static CURLcode res;
 static struct curl_slist *host_list = NULL;
 static struct response_data chunk;
-static struct station_name *s_name = NULL;
+//static struct station_name *s_name = NULL;
+struct common_list *all_stations;
 static struct curl_slist *nxt;
 static struct passenger_info pinfo[16];
 static struct ticket_info tinfo;
 static struct screen_param scr;
 const char *s_station = "广州南";
 const char *e_station = "梧州南";
+struct user_config config;
 
 int main(int argc, char *argv[])
 {
@@ -20,11 +22,15 @@ int main(int argc, char *argv[])
     if(signal(SIGTERM, sig_handler) == SIG_ERR) {
 	perror("signal: ");
     }
-    s_name = load_stations_name();
+    do_init();
 
-    init_user_screen();
-    init_curl();
-    init_buffer();
+    load_stations_name(&all_stations);
+    load_config(&config);
+    print_config(&config);
+
+    //init_user_screen();
+    //init_curl();
+    //init_buffer();
 
     if(checkUserIsLogin() != 0) {
 	user_login();
@@ -71,6 +77,13 @@ int init_curl()
     //curl_easy_setopt(curl, CURLOPT_NOBODY, 1l);
     //perform_request("https://kyfw.12306.cn/otn/login/init", GET, NULL, host_list);
     return 0;
+}
+
+int do_init()
+{
+    init_buffer();
+    init_curl();
+    init_list(&all_station);
 }
 
 int init_user_screen()
@@ -121,8 +134,8 @@ int clean_curl()
 
 int do_cleanup()
 {
-    destroy_win();
-    endwin();
+    //destroy_win();
+    //endwin();
     clean_curl();
     free(chunk.memory);
     free_ptr_array((void **)s_name);
@@ -142,9 +155,9 @@ int parse_train_info(const char *s, char (*t_buffer)[512], struct train_info *ti
     if(!cJSON_IsTrue(status)) {
 	cJSON *msg = cJSON_GetObjectItem(response, "messages");
 	if(!cJSON_IsNull(msg)) {
-	    //printf("error: %s\n", cJSON_Print(msg));
 	    char *err_msg = cJSON_Print(msg);
-	    wprintw(scr.status, "error: %s\n", err_msg);
+	    printf("error: %s\n", cJSON_Print(msg));
+	    //wprintw(scr.status, "error: %s\n", err_msg);
 	    free(err_msg);
 	}
 	goto fail;
@@ -273,16 +286,16 @@ int user_login()
     int ret = show_varification_code(0);
     if(ret == 100) {
 	if(start_login() == 0) {
-	    //printf("登陆成功\n");
-	    wprintw(scr.status, "登陆成功\n");
+	    printf("登陆成功\n");
+	    //wprintw(scr.status, "登陆成功\n");
 	    return 0;
 	} else {
-	    //printf("登陆失败\n");
-	    wprintw(scr.status, "登陆失败\n");
+	    printf("登陆失败\n");
+	    //wprintw(scr.status, "登陆失败\n");
 	}
     } else {
-	//printf("验证码校验失败\n");
-	wprintw(scr.status, "验证码校验失败\n");
+	printf("验证码校验失败\n");
+	//wprintw(scr.status, "验证码校验失败\n");
     }
     return 1;
 }
@@ -522,11 +535,11 @@ int get_passenger_dtos(const char *repeat_token)
 void print_train_info(struct train_info *info)
 {
     struct train_info *p = info;
-    //printf("车次\t出发站\t到达站\t出发时间\t到达时间\t历时\t特等座\t一等座\t二等座\t高级软卧\t软卧\t动卧\t硬卧\t软座\t硬座\t无座\t其他\n");
-    wprintw(scr.status, "车次\t出发站\t到达站\t出发时间\t到达时间\t历时\t特等座\t一等座\t二等座\t高级软卧\t软卧\t动卧\t硬卧\t软座\t硬座\t无座\t其他\n");
+    printf("车次\t出发站\t到达站\t出发时间\t到达时间\t历时\t特等座\t一等座\t二等座\t高级软卧\t软卧\t动卧\t硬卧\t软座\t硬座\t无座\t其他\n");
+    //wprintw(scr.status, "车次\t出发站\t到达站\t出发时间\t到达时间\t历时\t特等座\t一等座\t二等座\t高级软卧\t软卧\t动卧\t硬卧\t软座\t硬座\t无座\t其他\n");
     while(p->train_no) {
-	//printf("%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", p->station_train_code, p->from_station_telecode, 
-	wprintw(scr.status, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", p->station_train_code, p->from_station_telecode, 
+	printf("%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", p->station_train_code, p->from_station_telecode, 
+	//wprintw(scr.status, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", p->station_train_code, p->from_station_telecode, 
 		p->to_station_telecode, p->start_time, p->arrive_time, p->spend_time, p->swz_num, p->zy_num, p->ze_num, p->gr_num, p->rw_num,
 		p->yb_num, p->yw_num, p->rz_num, p->yz_num, p->wz_num, p->qt_num);
 	p++;
@@ -765,7 +778,7 @@ int start_submit_order_request(struct train_info *t_info)
 
     snprintf(url, sizeof(url), "%s", BASEURL"leftTicket/submitOrderRequest");
     snprintf(param, sizeof(param), "%s%s%s%c%c%c%c-%c%c-%c%c%s%d-%d-%d%s%s%s%s%s", "secretStr=", t_info->secretStr, "&train_date=", *p_stdate, *(p_stdate + 1), *(p_stdate + 2), *(p_stdate + 3), *(p_stdate + 4), *(p_stdate + 5), *(p_stdate + 6), *(p_stdate + 7),
-	    "&back_train_date=", ts->tm_year + 1900, ts->tm_mon + 1, ts->tm_mday,"&tour_flag=dc&purpose_codes=ADULT&query_from_station_name=", s_station, "&query_to_station_name=", e_station, "&undefined");
+	    "&back_train_date=", ts->tm_year + 1900, ts->tm_mon + 1, ts->tm_mday,"&tour_flag=dc&purpose_codes=ADULT&query_from_station_name=", config._from_station_name, "&query_to_station_name=", config._to_station_name, "&undefined");
 
     if(perform_request(url, POST, param, nxt) < 0) {
 	return -1;
@@ -985,23 +998,23 @@ int get_queue_count(cJSON *json, struct train_info *t_info)
 	return 1;
     }
     //long ticket_num = strtol(ticket_str->valuestring, NULL, 10);
-    //printf("当前余票：%s\n", ticket_str->valuestring);
-    wprintw(scr.status, "当前余票：%s\n", ticket_str->valuestring);
+    printf("当前余票：%s\n", ticket_str->valuestring);
+    //wprintw(scr.status, "当前余票：%s\n", ticket_str->valuestring);
     cJSON *countT_str = cJSON_GetObjectItem(data, "countT");
     if(!cJSON_IsString(countT_str)) {
 	cJSON_Delete(root);
 	return 1;
     }
-    //printf("当前排队人数：%s\n", countT_str->valuestring);
-    wprintw(scr.status, "当前排队人数：%s\n", countT_str->valuestring);
+    printf("当前排队人数：%s\n", countT_str->valuestring);
+    //wprintw(scr.status, "当前排队人数：%s\n", countT_str->valuestring);
     cJSON *op2_str = cJSON_GetObjectItem(data, "op_2");
     if(!cJSON_IsString(op2_str)) {
 	cJSON_Delete(root);
 	return 1;
     }
     if(strcmp(op2_str->valuestring, "true") == 0) {
-	//printf("当前排队人数超过余票张数，订单提交失败\n");
-	wprintw(scr.status, "当前排队人数超过余票张数，订单提交失败\n");
+	printf("当前排队人数超过余票张数，订单提交失败\n");
+	//wprintw(scr.status, "当前排队人数超过余票张数，订单提交失败\n");
 	return 2;
     }
 
@@ -1053,8 +1066,8 @@ int confirm_single_queue(cJSON *json)
     if(!cJSON_IsTrue(submit_status)) {
 	cJSON *err_msg = cJSON_GetObjectItem(data, "errMsg");
 	if(cJSON_IsString(err_msg)) {
-	    //printf("出票失败，原因：%s\n", err_msg->valuestring);
-	    wprintw(scr.status, "出票失败，原因：%s\n", err_msg->valuestring);
+	    printf("出票失败，原因：%s\n", err_msg->valuestring);
+	    //wprintw(scr.status, "出票失败，原因：%s\n", err_msg->valuestring);
 	}
 	return 1;
     }

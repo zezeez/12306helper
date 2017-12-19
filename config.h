@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "utils.h"
 
 struct user_config {
     char _username[64];
@@ -10,6 +11,8 @@ struct user_config {
     char _start_tour_date[32];
     char _from_station_name[16];
     char _to_station_name[16];
+    char _from_station_telecode[8];
+    char _to_station_telecode[8];
     int _query_ticket_interval;
     int _aways_queue;
     char _prefer_train_type[32];
@@ -24,4 +27,6 @@ struct user_config {
 
 int load_config(struct user_config *);
 int parse_config(struct user_config *, const char *);
+int set_config_value(struct user_config *, const char *, const char *);
+void print_config(struct user_config *);
 #endif
