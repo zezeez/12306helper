@@ -60,9 +60,9 @@ int init_curl()
 #ifdef USE_COOKIE
     curl_easy_setopt(curl, CURLOPT_COOKIEFILE, "./kyfw.12306.cn.cookie");
     curl_easy_setopt(curl, CURLOPT_COOKIEJAR, "./kyfw.12306.cn.cookie");
+#endif
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_memory_callback);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &chunk);
-#endif
     host_list = curl_slist_append(NULL, "kyfw.12306.cn:443:183.61.26.197:443");
     //host_list = curl_slist_append(host_list, "kyfw.12306.cn:443:36.102.235.206:443");
     //host_list = curl_slist_append(host_list, "kyfw.12306.cn:443:27.148.151.214:443");
@@ -77,12 +77,12 @@ int init_user_screen()
 {
     initscr();
     getmaxyx(stdscr, scr.rows, scr.cols);
-    //scr.info = newwin(scr.rows / 10 - 3, scr.cols - 3, 0, 0);
-    //scr.output = newwin(scr.rows * 7 / 10 - 3, scr.cols - 3, scr.rows / 10 + 3, 0);
-    //scr.status = newwin(scr.rows * 2 / 10 - 3, scr.cols - 3, scr.rows * 8 / 10 + 3, 0);
-    scr.info = newwin(5, 10, 0, 0);
-    scr.output = newwin(10, 10, 8, 0);
-    scr.status = newwin(5, 10, 11, 0);
+    scr.info = newwin(LINES / 10, COLS - 2, 0, 0);
+    scr.output = newwin(LINES * 7 / 10 - 3, COLS - 2, LINES / 10 + 3, 0);
+    scr.status = newwin(LINES * 2 / 10 - 3, COLS - 2, LINES * 8 / 10 + 3, 0);
+    //scr.info = newwin(5, 10, 0, 0);
+    //scr.output = newwin(10, 10, 8, 0);
+    //scr.status = newwin(5, 10, 11, 0);
     wborder(scr.info, '|', '|', '-', '-', '+', '+', '+', '+');
     wborder(scr.output, '|', '|', '-', '-', '+', '+', '+', '+');
     wborder(scr.status, '|', '|', '-', '-', '+', '+', '+', '+');
