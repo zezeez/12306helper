@@ -1,4 +1,5 @@
-
+#ifndef GLOBAL_H
+#define GLOBAL_H
 struct response_data {
 	char *memory;
 	size_t size;
@@ -16,4 +17,4 @@ enum request_type {
     GET = 0,
     POST
 };
-
+#endif

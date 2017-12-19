@@ -1,85 +1,6 @@
 #include "utils.h"
 
-int init_list(struct common_list **l)
-{
-	(*l) = (struct common_list *) malloc(sizeof(struct common_list));
-	if(*l == NULL) {
-		perror("malloc: ");
-		return -1;
-	}
-	(*l)->data = NULL;
-	(*l)->next = NULL;
-	return 0;
-}
-
-int insert(struct common_list *l, void *d, size_t size)
-{
-	struct common_list *node = (struct common_list *) malloc(sizeof(struct common_list));
-	if(node == NULL) {
-		perror("malloc: ");
-		return -1;
-	}
-	void *ptr = malloc(size);
-	if(ptr == NULL) {
-		perror("malloc: ");
-		return -1;
-	}
-	memcpy(ptr, d, size);
-	node->data = ptr;
-	node->next = l->next;
-	l->next = node;
-	return 0;
-}
-
-int remove_node(struct common_list *l, void *d, int (*func)(void *, void *))
-{
-	struct common_list *p = l->next;
-	struct common_list *prev = l;
-	while(p) {
-		if(func(p->data, d) != 0) {
-			prev = p;
-			p = p->next;
-		} else {
-			break;
-		}
-	}
-	if(p) {
-		prev->next = p->next;
-		free(p->data);
-		free(p);
-		return 0;
-	} else {
-		return -1;
-	}
-}
-
-struct common_list * find(struct common_list *l, void *d, int (*func)(void *, void *))
-{
-	struct common_list *p = l->next;
-	while(p) {
-		if(func(p->data, d) != 0) {
-			p = p->next;
-		} else {
-			return p;
-		}
-	}
-	return NULL;  /* not found */
-}
-
-int clear_list(struct common_list *l)
-{
-	struct common_list *p = l;
-	struct common_list *tmp = p;
-	while(tmp) {
-		tmp = p->next;
-		free(p->data);
-		free(p);
-		p = tmp;
-	}
-	return 0;
-}
-
-char ** split(const char *s, const char c)
+char **split(const char *s, const char c)
 {
     const char *p = s;
     const char *step = p;
@@ -165,26 +86,26 @@ int parse_peer_train(char *buff, void *ti)
     return 0;
 }
 
-struct station_name * load_stations_name()
+int load_stations_name(struct common_list *cl)
 {
     FILE *fd;
     char buffer[102400];
     char **s;
-    struct station_name *s_name;
+    /*struct station_name *s_name;
     int size = 64;
     s_name = (struct station_name *) malloc(size * sizeof(struct station_name));
     if(s_name == NULL) {
 	perror("malloc: ");
 	return NULL;
-    }
+    }*/
     if((fd = fopen("./station_name.txt", "r")) == NULL) {
 	perror("fopen: ");
-	return NULL;
+	return -1;
     }
     if(fgets(buffer, sizeof(buffer), fd) == NULL) {
 	perror("fgets: ");
 	fclose(fd);
-	return NULL;
+	return -1;
     }
     fclose(fd);
     s = split(buffer, '@');
@@ -193,7 +114,7 @@ struct station_name * load_stations_name()
 	char **station;
 	while(s[i]) {
 	    station = split(s[i], '|');
-	    if(i >= size - 1) {
+	    /*if(i >= size - 1) {
 		s_name = (struct station_name *) realloc(s_name, size * sizeof(struct station_name) * 2);
 		if(s_name == NULL) {
 		    perror("realloc: ");
@@ -203,14 +124,39 @@ struct station_name * load_stations_name()
 		size += size;
 	    }
 	    memcpy(s_name + i, station, sizeof(struct station_name));
+	    */
+	    insert_node(cl, (struct station_name *) station, insert_station_name);
 	    free(station);
 	    i++;
 	}
-	memset(s_name + i, 0, sizeof(struct station_name));
-	return s_name;
+	//memset(s_name + i, 0, sizeof(struct station_name));
+	return 0;
     } else {
+	return 1;
+    }
+}
+
+void *insert_station_name(void *s)
+{
+    struct station_name *p = (struct station_name *) malloc(sizeof(struct station_name));
+    if(p == NULL) {
+	perror("malloc: ");
 	return NULL;
     }
+    memcpy(p, s, sizeof(struct station_name));
+    return p;
+}
+
+int remove_station_name(void *d)
+{
+    struct station_name *p = (struct station_name *) d;
+    free(p->simple_py);
+    free(p->name);
+    free(p->code);
+    free(p->full_py);
+    free(p->simple_py2);
+    free(p->num);
+    return 0;
 }
 
 const char * find_station_name_by_code(struct station_name *name, const char *code, struct common_list *cache)
@@ -239,3 +185,26 @@ const char * find_station_name_at_cache(struct common_list *cache, const char *c
     return NULL;  /* not found */
 }
 
+int trim_space(const char *str, char *buffer)
+{
+    const char *s_ptr = str, *e_ptr;
+    s_ptr = str;
+    while(*s_ptr) {
+	if(*s_ptr == ' ' || *s_ptr == '\t') {
+	    s_ptr++;
+	} else {
+	    break;
+	}
+    }
+    e_ptr = s_ptr;
+    while(*e_ptr) {
+	if(*e_ptr != ' ' && *e_ptr != '\t') {
+	    e_ptr++;
+	} else {
+	    break;
+	}
+    }
+    memcpy(buffer, s_ptr, e_ptr - s_ptr);
+    buffer[e_ptr - s_ptr] = '\0';
+    return 0;
+}

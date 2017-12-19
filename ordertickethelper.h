@@ -14,6 +14,7 @@
 #include "cJSON.h"
 #include "utils.h"
 #include "global.h"
+#include "config.h"
 
 #define USE_COOKIE 1
 #define TARGETDOMAIN "https://kyfw.12306.cn"
