@@ -239,3 +239,16 @@ const char * find_station_name_at_cache(struct common_list *cache, const char *c
     return NULL;  /* not found */
 }
 
+int trim_space(char *str)
+{
+    char *p = str;
+    int space_counter = 0;
+    while(*p) {
+	if(*p == ' ' | *p == '\t') {
+	    space_counter++;
+	} else {
+	    break;
+	}
+    }
+    return 0;
+}

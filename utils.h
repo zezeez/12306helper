@@ -34,4 +34,5 @@ void free_ptr_array(void **);
 struct station_name * load_stations_name();
 const char * find_station_name_by_code(struct station_name *, const char *, struct common_list *);
 const char * find_station_name_at_cache(struct common_list *, const char *);
+int trim_space(char *);
 #endif
