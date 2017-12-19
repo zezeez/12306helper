@@ -20,9 +20,11 @@ struct station_name {
 char ** split(const char *, const char);
 int parse_peer_train(char *, void *);
 void free_ptr_array(void **);
-int load_stations_name();
-const char * find_station_name_by_code(struct station_name *, const char *, struct common_list *);
-const char * find_station_name_at_cache(struct common_list *, const char *);
+int load_stations_name(struct common_list *);
+//const char * find_station_name_by_code(struct station_name *, const char *, struct common_list *);
+//const char * find_station_name_at_cache(struct common_list *, const char *);
+int find_station_name(void *, void *);
+int find_station_code(void *, void *);
 void *insert_station_name(void *);
 int remove_station_name(void *);
 int trim_space(const char *, char *);

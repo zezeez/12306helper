@@ -6,6 +6,7 @@ static struct curl_slist *host_list = NULL;
 static struct response_data chunk;
 //static struct station_name *s_name = NULL;
 struct common_list *all_stations;
+struct common_list *cached_stations;
 static struct curl_slist *nxt;
 static struct passenger_info pinfo[16];
 static struct ticket_info tinfo;
@@ -24,7 +25,7 @@ int main(int argc, char *argv[])
     }
     do_init();
 
-    load_stations_name(&all_stations);
+    load_stations_name(all_stations);
     load_config(&config);
     print_config(&config);
 
@@ -83,7 +84,9 @@ int do_init()
 {
     init_buffer();
     init_curl();
-    init_list(&all_station);
+    init_list(&all_stations);
+    init_list(&cached_stations);
+    return 0;
 }
 
 int init_user_screen()
@@ -138,11 +141,13 @@ int do_cleanup()
     //endwin();
     clean_curl();
     free(chunk.memory);
-    free_ptr_array((void **)s_name);
+    //free_ptr_array((void **)s_name);
+    clear_list(all_stations, remove_station_name);
+    clear_list(cached_stations, remove_station_name);
     return 0;
 }
 
-int parse_train_info(const char *s, char (*t_buffer)[512], struct train_info *ti, struct common_list *cache)
+int parse_train_info(const char *s, char (*t_buffer)[512], struct train_info *ti)
 {
     cJSON *response = cJSON_Parse(s);
     if(response == NULL) {
@@ -179,6 +184,9 @@ int parse_train_info(const char *s, char (*t_buffer)[512], struct train_info *ti
     }
     int size = cJSON_GetArraySize(result);
     int i;
+    struct common_list *p_name;
+    struct common_list *fs_name;
+    struct common_list *es_name;
     /*clock_t t1, t2;
     t1 = clock();
     struct train_info *t_info;
@@ -198,6 +206,20 @@ int parse_train_info(const char *s, char (*t_buffer)[512], struct train_info *ti
 	//char *pitem = cJSON_PrintUnformatted(item);
 	//ti[i].pbuff = pitem;
 	parse_peer_train(t_buffer[i], ti + i);
+	//p_name = cached_stations;
+	fs_name = find_node(cached_stations, (ti + i)->from_station_telecode, find_station_name);
+	if(fs_name == NULL) {
+	    fs_name = find_node(all_stations, (ti + i)->from_station_telecode, find_station_name);
+	    insert_node(cached_stations, fs_name->data, insert_station_name);
+	}
+	es_name = find_node(p_name, (ti + i)->to_station_telecode, find_station_name);
+	if(es_name == NULL) {
+	    fs_name = find_node(cached_stations, (ti + i)->to_station_telecode, find_station_name);
+	    insert_node(cached_stations, es_name->data, insert_station_name);
+	}
+	(ti + i)->from_station_name = ((struct station_name *) fs_name->data)->name;
+	(ti + i)->to_station_name = ((struct station_name *) es_name->data)->name;
+
 	/*char **train = split(pitem + 1, '|');
 	cJSON_free(pitem);
 	if(train == NULL) {
@@ -538,9 +560,9 @@ void print_train_info(struct train_info *info)
     printf("车次\t出发站\t到达站\t出发时间\t到达时间\t历时\t特等座\t一等座\t二等座\t高级软卧\t软卧\t动卧\t硬卧\t软座\t硬座\t无座\t其他\n");
     //wprintw(scr.status, "车次\t出发站\t到达站\t出发时间\t到达时间\t历时\t特等座\t一等座\t二等座\t高级软卧\t软卧\t动卧\t硬卧\t软座\t硬座\t无座\t其他\n");
     while(p->train_no) {
-	printf("%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", p->station_train_code, p->from_station_telecode, 
+	printf("%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", p->station_train_code, p->from_station_name, 
 	//wprintw(scr.status, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", p->station_train_code, p->from_station_telecode, 
-		p->to_station_telecode, p->start_time, p->arrive_time, p->spend_time, p->swz_num, p->zy_num, p->ze_num, p->gr_num, p->rw_num,
+		p->to_station_name, p->start_time, p->arrive_time, p->spend_time, p->swz_num, p->zy_num, p->ze_num, p->gr_num, p->rw_num,
 		p->yb_num, p->yw_num, p->rz_num, p->yz_num, p->wz_num, p->qt_num);
 	p++;
     }
@@ -613,9 +635,9 @@ int query_ticket()
     char url[256];
     struct train_info t_info[512];
     char train_buffer[512][512];
-    struct common_list *cache;
+    //struct common_list *cache;
 
-    init_list(&cache);
+    //init_list(&cache);
     //curl_easy_setopt(curl, CURLOPT_NOBODY, 0L);
 
     snprintf(url, sizeof(url), "%s", BASEURL"leftTicket/log?leftTicketDTO.train_date=2017-12-15&leftTicketDTO.from_station=IZQ&leftTicketDTO.to_station=WBZ&purpose_codes=ADULT");
@@ -632,7 +654,7 @@ int query_ticket()
 	/*if(nxt == NULL) {
 	  nxt = host_list;
 	  }*/
-	parse_train_info(chunk.memory, train_buffer, t_info, cache);
+	parse_train_info(chunk.memory, train_buffer, t_info);
 	//if(t_info) {
 	print_train_info(t_info);
 	/*if(process_train(t_info) == 0) {
@@ -643,7 +665,7 @@ int query_ticket()
 	//free_train_info(t_info);
 	sleep(3);
     }
-    clear_list(cache);
+    //clear_list(cache);
     return 1;
 }
 

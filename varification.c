@@ -241,10 +241,10 @@ refresh(GtkWidget *widget,
     if(perform_request(url, GET, NULL, tres->tdata->nxt) < 0) {
 	return;
     }
-    static int counter = 0;
+    //static int counter = 0;
     loader = gdk_pixbuf_loader_new();
     ret = gdk_pixbuf_loader_write(loader, (const guchar *)tres->tdata->r_data->memory, tres->tdata->r_data->size, &error);
-    g_print("ret: %d, counter: %d\n", ret, ++counter);
+    //g_print("ret: %d, counter: %d\n", ret, ++counter);
     if(ret) {
 	pixbuf = gdk_pixbuf_loader_get_pixbuf(loader);
 	if(pixbuf) {

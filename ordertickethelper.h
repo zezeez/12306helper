@@ -15,6 +15,7 @@
 #include "utils.h"
 #include "global.h"
 #include "config.h"
+#include "common_list.h"
 
 #define USE_COOKIE 1
 #define TARGETDOMAIN "https://kyfw.12306.cn"
@@ -107,10 +108,11 @@ struct screen_param {
     int cols;
 };
 
-int parse_train_info(const char *, char (*)[512], struct train_info *, struct common_list *);
+int parse_train_info(const char *, char (*)[512], struct train_info *);
 int perform_request(const char *, enum request_type, void *, struct curl_slist *);
 size_t write_memory_callback(void *, size_t, size_t, void *);
 void print_train_info(struct train_info *);
+int do_init();
 int init_buffer();
 int init_curl();
 int do_cleanup();

@@ -147,6 +147,26 @@ void *insert_station_name(void *s)
     return p;
 }
 
+int find_station_name(void *s, void *d)
+{
+    struct station_name *s_name = (struct station_name *) s;
+    //struct station_name *d_name = (struct station_name *) d;
+    if(strcmp(s_name->code, (const char *)d) == 0) {
+	return 0;
+    }
+    return 1;
+}
+
+int find_station_code(void *s, void *d)
+{
+    struct station_name *s_name = (struct station_name *) s;
+    //struct station_name *d_name = (struct station_name *) d;
+    if(strcmp(s_name->name, (const char *)d) == 0) {
+	return 0;
+    }
+    return 1;
+}
+
 int remove_station_name(void *d)
 {
     struct station_name *p = (struct station_name *) d;
@@ -159,7 +179,7 @@ int remove_station_name(void *d)
     return 0;
 }
 
-const char * find_station_name_by_code(struct station_name *name, const char *code, struct common_list *cache)
+/*const char * find_station_name_by_code(struct station_name *name, const char *code, struct common_list *cache)
 {
     struct station_name *pn = name;
     while(pn->simple_py) {
@@ -169,10 +189,10 @@ const char * find_station_name_by_code(struct station_name *name, const char *co
 	}
 	pn++;
     }
-    return NULL;  /* not found */
-}
+    return NULL; 
+}*/
 
-const char * find_station_name_at_cache(struct common_list *cache, const char *code)
+/*const char * find_station_name_at_cache(struct common_list *cache, const char *code)
 {
     struct common_list *p = cache;
     while(p) {
@@ -182,8 +202,8 @@ const char * find_station_name_at_cache(struct common_list *cache, const char *c
 	    return ((struct station_name *)p->data)->name;
 	}
     }
-    return NULL;  /* not found */
-}
+    return NULL; 
+}*/
 
 int trim_space(const char *str, char *buffer)
 {
