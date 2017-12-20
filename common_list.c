@@ -63,7 +63,7 @@ struct common_list *find_node(struct common_list *l, void *d, int (*func)(void *
 
 int clear_list(struct common_list *l, int (*func)(void *))
 {
-    struct common_list *p = l;
+    struct common_list *p = l->next;
     struct common_list *tmp = p;
     while(tmp) {
 	tmp = p->next;
@@ -73,5 +73,6 @@ int clear_list(struct common_list *l, int (*func)(void *))
 	free(p);
 	p = tmp;
     }
+    free(l);
     return 0;
 }

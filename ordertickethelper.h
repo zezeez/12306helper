@@ -98,6 +98,7 @@ struct ticket_info {
     char key_is_change[64];
     char seat_type[4];
     char train_location[4];
+    char order_no[32];
 };
 
 struct screen_param {
@@ -128,6 +129,7 @@ int submit_order_request(struct train_info *);
 int init_my12306();
 int user_login();
 int init_user_screen();
+int fill_user_config_telecode();
 extern void *show_varification_code_main(void *);
 static void sig_handler(int);
 #endif

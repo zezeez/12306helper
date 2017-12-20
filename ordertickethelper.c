@@ -15,6 +15,7 @@ const char *s_station = "广州南";
 const char *e_station = "梧州南";
 struct user_config config;
 
+extern int setup_mail(struct user_config *);
 int main(int argc, char *argv[])
 {
     if(signal(SIGINT, sig_handler) == SIG_ERR) {
@@ -24,10 +25,6 @@ int main(int argc, char *argv[])
 	perror("signal: ");
     }
     do_init();
-
-    load_stations_name(all_stations);
-    load_config(&config);
-    print_config(&config);
 
     //init_user_screen();
     //init_curl();
@@ -86,6 +83,33 @@ int do_init()
     init_curl();
     init_list(&all_stations);
     init_list(&cached_stations);
+
+    load_stations_name(all_stations);
+    load_config(&config);
+    fill_user_config_telecode();
+    print_config(&config);
+    return 0;
+}
+
+int fill_user_config_telecode()
+{
+    struct common_list *fs_code, *ts_code;
+    fs_code = find_node(cached_stations, config._from_station_name, find_station_code);
+    if(fs_code == NULL) {
+	fs_code = find_node(all_stations, config._from_station_name, find_station_code);
+	insert_node(cached_stations, fs_code->data, insert_station_name);
+    }
+    //config._from_station_telecode = ((struct station_name *) fs_code->data)->code;
+    strcpy(config._from_station_telecode, ((struct station_name *) fs_code->data)->code);
+
+    ts_code = find_node(cached_stations, config._to_station_name, find_station_code);
+    if(ts_code == NULL) {
+	ts_code = find_node(all_stations, config._to_station_name, find_station_code);
+	insert_node(cached_stations, ts_code->data, insert_station_name);
+    }
+    //config._to_station_telecode = ((struct station_name *) ts_code->data)->code;
+    strcpy(config._to_station_telecode, ((struct station_name *) ts_code->data)->code);
+    //printf("from_station_telecode: %s, to_station_telecode: %s\n", config._from_station_telecode, config._to_station_telecode);
     return 0;
 }
 
@@ -143,7 +167,7 @@ int do_cleanup()
     free(chunk.memory);
     //free_ptr_array((void **)s_name);
     clear_list(all_stations, remove_station_name);
-    clear_list(cached_stations, remove_station_name);
+    //clear_list(cached_stations, remove_station_name);
     return 0;
 }
 
@@ -184,7 +208,6 @@ int parse_train_info(const char *s, char (*t_buffer)[512], struct train_info *ti
     }
     int size = cJSON_GetArraySize(result);
     int i;
-    struct common_list *p_name;
     struct common_list *fs_name;
     struct common_list *es_name;
     /*clock_t t1, t2;
@@ -212,9 +235,9 @@ int parse_train_info(const char *s, char (*t_buffer)[512], struct train_info *ti
 	    fs_name = find_node(all_stations, (ti + i)->from_station_telecode, find_station_name);
 	    insert_node(cached_stations, fs_name->data, insert_station_name);
 	}
-	es_name = find_node(p_name, (ti + i)->to_station_telecode, find_station_name);
+	es_name = find_node(cached_stations, (ti + i)->to_station_telecode, find_station_name);
 	if(es_name == NULL) {
-	    fs_name = find_node(cached_stations, (ti + i)->to_station_telecode, find_station_name);
+	    es_name = find_node(all_stations, (ti + i)->to_station_telecode, find_station_name);
 	    insert_node(cached_stations, es_name->data, insert_station_name);
 	}
 	(ti + i)->from_station_name = ((struct station_name *) fs_name->data)->name;
@@ -252,53 +275,53 @@ fail:
 static int
 start_login()
 {
-	char url[64];
-	char post_data[64];
+    char url[64];
+    char post_data[64];
 
-	snprintf(url, sizeof(url), "%s", "https://kyfw.12306.cn/passport/web/login");
-	snprintf(post_data, sizeof(post_data), "%s", "username=test&password=test&appid=otn");
+    snprintf(url, sizeof(url), "%s", "https://kyfw.12306.cn/passport/web/login");
+    snprintf(post_data, sizeof(post_data), "%s", "username=test&password=test&appid=otn");
 
-	if(perform_request(url, POST, post_data, nxt) < 0) {
+    if(perform_request(url, POST, post_data, nxt) < 0) {
+	return -1;
+    }
+    cJSON *ret_json = cJSON_Parse(chunk.memory);
+    //char *str_json = cJSON_Print(ret_json);
+    //printf("json: %s\n", str_json);
+    if(cJSON_IsNull(ret_json)) {
+	    fprintf(stderr, "error while parse json data.\n");
 	    return -1;
-	}
-	cJSON *ret_json = cJSON_Parse(chunk.memory);
-	//char *str_json = cJSON_Print(ret_json);
-	//printf("json: %s\n", str_json);
-	if(cJSON_IsNull(ret_json)) {
-		fprintf(stderr, "error while parse json data.\n");
-		return -1;
-	}
-	cJSON *ret_code = cJSON_GetObjectItem(ret_json, "result_code");
-	if(cJSON_IsNumber(ret_code) && ret_code->valueint == 0) {
-	    init_my12306();
-	    cJSON_Delete(ret_json);
-	    //free(str_json);
-	    return 0;
-	}
+    }
+    cJSON *ret_code = cJSON_GetObjectItem(ret_json, "result_code");
+    if(cJSON_IsNumber(ret_code) && ret_code->valueint == 0) {
+	init_my12306();
 	cJSON_Delete(ret_json);
 	//free(str_json);
-	return 1;
+	return 0;
+    }
+    cJSON_Delete(ret_json);
+    //free(str_json);
+    return 1;
 }
 
 int show_varification_code(int auth_type)
 {
-	pthread_t tid;
-	int *ret;
-	//pthread_attr_t attr;
-	//pthread_attr_init(&attr);
-	//pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
-	struct thread_data tdata;
-	tdata.curl = curl;
-	tdata.auth_type = auth_type;
-	tdata.r_data = &chunk;
-	tdata.nxt = nxt;
+    pthread_t tid;
+    int *ret;
+    //pthread_attr_t attr;
+    //pthread_attr_init(&attr);
+    //pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+    struct thread_data tdata;
+    tdata.curl = curl;
+    tdata.auth_type = auth_type;
+    tdata.r_data = &chunk;
+    tdata.nxt = nxt;
 
-	pthread_create(&tid, NULL, show_varification_code_main, (void *)&tdata);
-	pthread_join(tid, (void **)&ret);
+    pthread_create(&tid, NULL, show_varification_code_main, (void *)&tdata);
+    pthread_join(tid, (void **)&ret);
 
-	int status = *ret;
-	free(ret);
-	return status;
+    int status = *ret;
+    free(ret);
+    return status;
 }
 
 int user_login()
@@ -601,7 +624,7 @@ int perform_request(const char *url, enum request_type type, void *post, struct 
 
 int check_current_train_submitable(struct train_info *ptrain)
 {
-	if(ptrain->can_web_buy[0] == 'Y' && strcmp(ptrain->from_station_telecode, "IZQ") == 0 && strcmp(ptrain->to_station_telecode, "WBZ") == 0) {
+	if(ptrain->can_web_buy[0] == 'Y' && strcmp(ptrain->from_station_telecode, config._from_station_telecode) == 0 && strcmp(ptrain->to_station_telecode, config._to_station_telecode) == 0) {
 	    return 0;
 	}
 	return 1;
@@ -635,15 +658,13 @@ int query_ticket()
     char url[256];
     struct train_info t_info[512];
     char train_buffer[512][512];
-    //struct common_list *cache;
 
-    //init_list(&cache);
     //curl_easy_setopt(curl, CURLOPT_NOBODY, 0L);
 
-    snprintf(url, sizeof(url), "%s", BASEURL"leftTicket/log?leftTicketDTO.train_date=2017-12-15&leftTicketDTO.from_station=IZQ&leftTicketDTO.to_station=WBZ&purpose_codes=ADULT");
+    snprintf(url, sizeof(url), "%sleftTicket/log?leftTicketDTO.train_date=%s&leftTicketDTO.from_station=%s&leftTicketDTO.to_station=%s&purpose_codes=ADULT", BASEURL, config._start_tour_date, config._from_station_telecode, config._to_station_telecode);
     perform_request(url, GET, NULL, nxt);
 
-    snprintf(url, sizeof(url), "%s", BASEURL"leftTicket/query?leftTicketDTO.train_date=2017-12-15&leftTicketDTO.from_station=IZQ&leftTicketDTO.to_station=WBZ&purpose_codes=ADULT");
+    snprintf(url, sizeof(url), "%sleftTicket/query?leftTicketDTO.train_date=%s&leftTicketDTO.from_station=%s&leftTicketDTO.to_station=%s&purpose_codes=ADULT", BASEURL, config._start_tour_date, config._from_station_telecode, config._to_station_telecode);
 
     while(1) {
 	if(perform_request(url, GET, NULL, nxt) < 0) {
@@ -663,7 +684,7 @@ int query_ticket()
 	//free_ptr_array((void **)t_info);
 	//}
 	//free_train_info(t_info);
-	sleep(3);
+	sleep(config._query_ticket_interval);
     }
     //clear_list(cache);
     return 1;
@@ -740,18 +761,6 @@ int init_my12306()
     perform_request(url, GET, NULL, nxt);
 
     return 0;
-}
-
-cJSON *parseJsonData(const char *data, const char *key)
-{
-	cJSON *root = cJSON_Parse(data);
-	if(root) {
-		cJSON *value = cJSON_GetObjectItem(root, key);
-		if(value) {
-			return value;
-		}
-	}
-	return NULL;
 }
 
 int get_passenger_tickets_for_submit(cJSON *root, char *ptr, size_t size)
@@ -1123,6 +1132,10 @@ int query_order_wait_time()
     if(!cJSON_IsNumber(waitTime)) {
 	return 1;
     }
+    cJSON *order_id = cJSON_GetObjectItem(data, "orderId");
+    if(cJSON_IsString(order_id)) {
+	strncpy(tinfo.order_no, order_id->valuestring, sizeof(tinfo.order_no));
+    }
     if(waitTime->valueint == -1 || waitTime->valueint == -100) {
 	return 0;
     } else {
@@ -1142,7 +1155,7 @@ int result_order_for_dc_queue(const char *order_no)
     if(perform_request(url, POST, param, nxt) < 0) {
 	return -1;
     }
-    //printf("resultOrderForDcQueue result: %s\n", chunk.memory);
+    printf("resultOrderForDcQueue result: %s\n", chunk.memory);
     return 0;
 }
 
@@ -1164,13 +1177,16 @@ int submit_order_request(struct train_info *t_info)
 	int ret = check_order_info(root);
 	if(ret != 0) {
 	    if(show_varification_code(1) != 0) {
+		cJSON_Delete(root);
 		return 1;
 	    }
 	}
 	if(get_queue_count(root, ptrain) != 0) {
+	    cJSON_Delete(root);
 	    return 1;
 	}
 	if(confirm_single_queue(root) != 0) {
+	    cJSON_Delete(root);
 	    return 1;
 	} /*else {
 	    return 0;
@@ -1180,11 +1196,12 @@ int submit_order_request(struct train_info *t_info)
 	    sleep(3);
 	}
 	if(wait_time != 0) {
+	    cJSON_Delete(root);
 	    return 1;
-	} else {
-	    return 0;
 	}
+	result_order_for_dc_queue(tinfo.order_no);
 	cJSON_Delete(root);
+	return 0;
     }
     return 1;
 }

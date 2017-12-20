@@ -8,6 +8,7 @@
 #include <unistd.h>  
 #include <sys/time.h>  
 #include <netdb.h>  
+#include "config.h"
   
   
 #define TEST_IMG     ("test.png")  
@@ -28,46 +29,40 @@ static char base64_table[64] =
   
 int base64_encode(unsigned char *buf, int nLen, char *pOutBuf, int nBufSize);  
   
-void sendemail(char *stmpServer, char *body);  
+void sendemail(struct user_config *, char *body);  
 int open_socket(struct sockaddr *addr);  
   
-int main()  
+int setup_mail(struct user_config *uc)  
 {  
     FILE * fp = NULL;  
     char buf[128] = {0};  
     char outbuf[256] = {0};  
     char *body = NULL;  
-    char email[] = "smtp.163.com";  
-#if 0  
-    char body[] = "From: \"********\"<****@qq.com>\r\n"  
-        "To:  \"horst\"<>\r\n"  
-        "Subject: Hello\r\n\r\n"  
-        "this is a test!\n"  
-        "good bye!"  
+    //char email[] = "smtp.163.com";  
+    /*char bodyHead[] = "From: \"gxzpljj\"<gxzpljj@163.com>\r\n"  
+        "To:  \"gxzpljj\"<gxzpljj@163.com>\r\n"  
         "MIME-Version:1.0\r\n"  
-        "Content-Type:multipart/mixed;boundary=\"---=_NextPart_000_0050_01C\"\r\n"  
-        "Subject:=?gb2312?B?TU1NRdCt0unLtcP308q8/g==?=\r\n";  
-#endif  
-    char bodyHead[] = "From: \"test\"<test@163.com>\r\n"  
-        "To:  \"test\"<test@163.com>\r\n"  
-        "MIME-Version:1.0\r\n"  
-        "Content-Type:multipart/mixed;boundary=\"---=_NextPart_000_0050_01C\"\r\n"  
+        //"Content-Type:multipart/mixed;boundary=\"---=_NextPart_000_0050_01C\"\r\n"  
+        "Content-Type:text/plain;boundary=\"---=_NextPart_000_0050_01C\"\r\n"  
         "Subject:test\r\n"  
         "\r\n"  
         "-----=_NextPart_000_0050_01C\r\n"  
-        "Content-Type:text/plain;charset=\"gb2312\"\r\n"  
+        "Content-Type:text/plain;charset=\"utf8\"\r\n"  
         "\r\n"  
         "hello \r\n"  
         "-----=_NextPart_000_0050_01C\r\n"  
-        "\r\n\r\n"  
-        "Content-Type:application/octet-stream;name=\"test.png\"\r\n"  
+        "\r\n\r\n";
+        //"Content-Type:application/octet-stream;name=\"test.png\"\r\n"  
         "Content-Transfer-Encoding:base64\r\n"  
-        "Content-Disposion:attachment;filename=\"test.png\""  
-        "\r\n\r\n";  
-          
-    char bodyend[] = "\r\n-----=_NextPart_000_0050_01C\r\n";  
+        //"Content-Disposion:attachment;filename=\"test.png\""  
+        "\r\n\r\n"; 
+         */ 
+    char bodyHead[1024];
+    snprintf(bodyHead, sizeof(bodyHead), "From: \"%s\"<%s>\r\nTo \"%s\"<%s>\r\nMIME-Version:1.0\r\nContent-Type:text/plain;boundary=\"---=_NextPart_000_0050_01C\"\r\nSubject:%s\r\n\r\n%s\r\n\r\n", uc->_mail_username, uc->_mail_username, uc->_mail_username, uc->_mail_username,
+	    "Text", "This is test email");
+    //char bodyend[] = "\r\n-----=_NextPart_000_0050_01C\r\n";  
   
-    body = malloc(8 * 1024 * 1024);  
+    /*body = malloc(8 * 1024 * 1024);  
     if(NULL == body)  
     {  
         perror("malloc(): ");  
@@ -76,9 +71,9 @@ int main()
   
     memset(body, 0x0, 8*1024*1024);  
   
-    sprintf(body, bodyHead);  
+    sprintf(body, bodyHead);  */
       
-    fp = fopen(TEST_IMG, "rb");  
+    /*fp = fopen(TEST_IMG, "rb");  
     if(fp == NULL)  
     {  
         perror("fopen(): ");  
@@ -99,16 +94,17 @@ int main()
         memset(buf, 0x0, 128);  
         memset(outbuf, 0x0, 256);  
         ptr += len;  
-    }  
+    } */ 
   
-    sprintf(ptr, "\r\n\r\n");  
-    ptr += strlen("\r\n\r\n");  
-    sprintf(ptr, bodyend);  
+    /*sprintf(ptr, "\r\n\r\n");  
+    ptr += strlen("\r\n\r\n");  */
+    //strcat(bodyHead, "\r\n\r\n");
+    //sprintf(ptr, bodyend);  
+    //strcat(bodyHead, bodyend);
+    sendemail(uc, bodyHead);  
   
-    sendemail(email, body);  
-  
-    fclose(fp);  
-    free(body);  
+    //fclose(fp);  
+    //free(body);  
   
     return 0;  
 }  
@@ -171,7 +167,7 @@ int base64_encode(unsigned char* pBase64, int nLen, char* pOutBuf, int nBufSize)
  * @param smtpServer  
  * @param body  
  */  
-void sendemail(char *smtpServer, char *body)  
+void sendemail(struct user_config *uc, char *body)  
 {  
     int sockfd = 0;  
     struct sockaddr_in their_addr = {0};  
@@ -181,12 +177,11 @@ void sendemail(char *smtpServer, char *body)
     char pass[128] = {0};  
     struct hostent *host = NULL;  
   
-    if((host = gethostbyname(smtpServer))==NULL)/*取得主机IP地址*/  
+    if((host = gethostbyname(uc->_mail_server))==NULL)/*取得主机IP地址*/  
     {  
         fprintf(stderr,"Gethostname error, %s\n", strerror(errno));  
         exit(1);  
     }  
-  
   
     memset(&their_addr, 0, sizeof(their_addr));  
     their_addr.sin_family = AF_INET;  
@@ -194,9 +189,8 @@ void sendemail(char *smtpServer, char *body)
     their_addr.sin_addr = *((struct in_addr *)host->h_addr);  
   
     sockfd = open_socket((struct sockaddr *)&their_addr);  
-  
     memset(rbuf, 0, 1500);  
-  
+    printf("ready\n");
     while(recv(sockfd, rbuf, 1500, 0) == 0)  
     {  
         printf("reconnect..\n");  
@@ -213,13 +207,11 @@ void sendemail(char *smtpServer, char *body)
     /* EHLO */  
   
     memset(buf, 0, 1500);  
-    sprintf(buf, "EHLO abcdefg-PC\r\n");  
+    sprintf(buf, "EHLO newer-PC\r\n");  
   
     send(sockfd, buf, strlen(buf), 0);  
     memset(rbuf, 0, 1500);  
-  
     recv(sockfd, rbuf, 1500, 0);  
-  
     printf("%s\n", rbuf);  
   
     /*AUTH LOGIN  */  
@@ -228,20 +220,17 @@ void sendemail(char *smtpServer, char *body)
     send(sockfd, buf, strlen(buf), 0);  
   
     printf("%s\n", buf);  
-  
     memset(rbuf, 0, 1500);  
-  
     recv(sockfd, rbuf, 1500, 0);  
-  
     printf("%s\n", rbuf);  
   
     /* USER */  
     memset(buf, 0, 1500);  
   
-    sprintf(buf, "test@163.com");  
+    //sprintf(buf, "test@163.com");  
     memset(login, 0, 128);  
   
-    base64_encode(buf, strlen(buf), login, 128);                   /* base64 */  
+    base64_encode(uc->_mail_username, strlen(uc->_mail_username), login, 128);                   /* base64 */  
   
     sprintf(buf, "%s\r\n", login);  
     send(sockfd, buf, strlen(buf), 0);  
@@ -254,10 +243,10 @@ void sendemail(char *smtpServer, char *body)
   
     /* PASSWORD */  
     memset(buf, 0, 1500);  
-    sprintf(buf, "test");  
+    //sprintf(buf, "test");  
     memset(pass, 0, 128);  
   
-    base64_encode(buf, strlen(buf), pass, 128);  
+    base64_encode(uc->_mail_password, strlen(uc->_mail_password), pass, 128);  
     memset(buf, 0, 1500);  
     sprintf(buf, "%s\r\n", pass);  
     send(sockfd, buf, strlen(buf), 0);  
@@ -269,18 +258,16 @@ void sendemail(char *smtpServer, char *body)
     printf("%s, %d\n", rbuf, __LINE__);  
   
     /* MAIL FROM */  
-  
     memset(buf, 0, 1500);  
-    sprintf(buf, "MAIL FROM: <test@163.com>\r\n");  
+    snprintf(buf, sizeof(buf), "MAIL FROM: <%s>\r\n", uc->_mail_username);  
     send(sockfd, buf, strlen(buf), 0);  
   
     memset(rbuf, 0, 1500);  
     recv(sockfd, rbuf, 1500, 0);  
-  
     printf("%s\n", rbuf);  
   
     /* rcpt to 第一个收件人 */  
-    sprintf(buf, "RCPT TO:<test@163.com>\r\n");  
+    snprintf(buf, sizeof(buf), "RCPT TO:<%s>\r\n", uc->_mail_username);  
     send(sockfd, buf, strlen(buf), 0);  
   
     memset(rbuf, 0, 1500);  
@@ -289,7 +276,6 @@ void sendemail(char *smtpServer, char *body)
     printf("%s\n", rbuf);  
   
     /* DATA email connext ready  */  
-  
     sprintf(buf, "DATA\r\n");  
     send(sockfd, buf, strlen(buf), 0);  
   
@@ -298,18 +284,13 @@ void sendemail(char *smtpServer, char *body)
     printf("%s\n", rbuf);  
   
     /* send email connext \r\n.\r\n end*/  
-  
     sprintf(buf, "%s\r\n.\r\n", body);  
-  
     send(sockfd, buf, strlen(buf), 0);  
-  
     memset(rbuf, 0, 1500);  
-  
     recv(sockfd, rbuf, 1500, 0);  
     printf("%s\n", rbuf);  
   
     /* QUIT */  
-  
     sprintf(buf, "QUIT\r\n");  
     send(sockfd, buf, strlen(buf), 0);  
     memset(rbuf, 0, 1500);  
@@ -335,7 +316,6 @@ int open_socket(struct sockaddr *addr)
     if(connect(sockfd, addr, sizeof(struct sockaddr)) < 0)  
     {  
         close(sockfd);  
-  
         fprintf(stderr, "Connect sockfd(TCP ) error!\n");  
         exit(-1);  
     }  
