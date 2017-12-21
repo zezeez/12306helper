@@ -28,4 +28,5 @@ int find_station_code(void *, void *);
 void *insert_station_name(void *);
 int remove_station_name(void *);
 int trim_space(const char *, char *);
+void *read_file_all(const char *);
 #endif

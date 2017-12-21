@@ -228,3 +228,35 @@ int trim_space(const char *str, char *buffer)
     buffer[e_ptr - s_ptr] = '\0';
     return 0;
 }
+
+void *read_file_all(const char *file)
+{
+    FILE *fd;
+    size_t fsize;
+    char *buffer;
+
+    if((fd = fopen(file, "rb")) == NULL) {
+	perror("fopen: ");
+	return NULL;
+    }
+
+    fseek(fd, 0, SEEK_END);
+    fsize = ftell(fd);
+    rewind(fd);
+
+    buffer = (char *) malloc(sizeof(char) * fsize);
+    if(buffer == NULL) {
+	perror("malloc: ");
+	fclose(fd);
+	return NULL;
+    }
+    if(fread(buffer, 1, fsize, fd) != fsize && !feof(fd)) {
+	perror("perror: ");
+	fclose(fd);
+	free(buffer);
+	return NULL;
+    }
+
+    fclose(fd);
+    return buffer;
+}

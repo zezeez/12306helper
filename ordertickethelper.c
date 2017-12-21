@@ -4,15 +4,13 @@ static CURL *curl;
 static CURLcode res;
 static struct curl_slist *host_list = NULL;
 static struct response_data chunk;
-//static struct station_name *s_name = NULL;
 struct common_list *all_stations;
 struct common_list *cached_stations;
 static struct curl_slist *nxt;
 static struct passenger_info pinfo[16];
+static struct passenger_info cur_passenger;
 static struct ticket_info tinfo;
 static struct screen_param scr;
-const char *s_station = "广州南";
-const char *e_station = "梧州南";
 struct user_config config;
 
 extern int setup_mail(struct user_config *);
@@ -30,9 +28,13 @@ int main(int argc, char *argv[])
     //init_curl();
     //init_buffer();
 
+    clock_t t1, t2;
+    t1 = clock();
     if(checkUserIsLogin() != 0) {
 	user_login();
     }
+    t2 = clock();
+    printf("checkUserIsLogin time: %lu\n", t2 - t1);
     //show_varification_code();
     query_ticket();
 
@@ -42,7 +44,7 @@ int main(int argc, char *argv[])
 
 int init_buffer()
 {
-    chunk.memory = (char *)malloc(1024 * 1024 * 4);  /* allocate 4k memory */
+    chunk.memory = (char *)malloc(1024 * 1024 * 4);  /* preallocate 4k memory */
     if(chunk.memory == NULL) {
 	perror("malloc: ");
 	return -1;
@@ -226,10 +228,7 @@ int parse_train_info(const char *s, char (*t_buffer)[512], struct train_info *ti
 	}
 	//printf("train info: %s\n", item->valuestring);
 	strncpy(t_buffer[i], item->valuestring, 512);
-	//char *pitem = cJSON_PrintUnformatted(item);
-	//ti[i].pbuff = pitem;
 	parse_peer_train(t_buffer[i], ti + i);
-	//p_name = cached_stations;
 	fs_name = find_node(cached_stations, (ti + i)->from_station_telecode, find_station_name);
 	if(fs_name == NULL) {
 	    fs_name = find_node(all_stations, (ti + i)->from_station_telecode, find_station_name);
@@ -279,7 +278,7 @@ start_login()
     char post_data[64];
 
     snprintf(url, sizeof(url), "%s", "https://kyfw.12306.cn/passport/web/login");
-    snprintf(post_data, sizeof(post_data), "%s", "username=test&password=test&appid=otn");
+    snprintf(post_data, sizeof(post_data), "username=%s&password=%s&appid=otn", config._username, config._password);
 
     if(perform_request(url, POST, post_data, nxt) < 0) {
 	return -1;
@@ -359,10 +358,10 @@ int passenger_initdc()
     char *p, *token_pos, *token_end_pos;
     if((p = strstr(chunk.memory, "globalRepeatSubmitToken")) != NULL) {
 	if((token_pos = strchr(p, '\'')) != NULL) {
-		if((token_end_pos = strchr(token_pos + 1, '\'')) != NULL) {
-		    memcpy(tinfo.repeat_submit_token, token_pos + 1, token_end_pos - token_pos - 1);
-		    tinfo.repeat_submit_token[token_end_pos - token_pos - 1] = '\0';
-		}
+	    if((token_end_pos = strchr(token_pos + 1, '\'')) != NULL) {
+		memcpy(tinfo.repeat_submit_token, token_pos + 1, token_end_pos - token_pos - 1);
+		tinfo.repeat_submit_token[token_end_pos - token_pos - 1] = '\0';
+	    }
 	}
     } else {
 	return 1;
@@ -425,6 +424,8 @@ int passenger_initdc()
 		}
 	    }
 	    //printf("ticketInfoForPassengerForm: %s\n", tinfo.ticketInfoForPassengerForm);
+	} else {
+	    return 1;
 	}
     } else {
 	return 1;
@@ -444,146 +445,146 @@ int passenger_initdc()
 
 int get_passenger_dtos(const char *repeat_token)
 {
-	char url[64];
-	char par[64];
+    char url[64];
+    char par[64];
 
-	snprintf(url, sizeof(url), "%s", BASEURL"confirmPassenger/getPassengerDTOs");
-	snprintf(par, sizeof(par), "%s%s", "_json_attr=&REPEAT_SUBMIT_TOKEN=", repeat_token);
+    snprintf(url, sizeof(url), "%s", BASEURL"confirmPassenger/getPassengerDTOs");
+    snprintf(par, sizeof(par), "%s%s", "_json_attr=&REPEAT_SUBMIT_TOKEN=", repeat_token);
 
-	if(perform_request(url, POST, par, nxt) < 0) {
-	    return -1;
-	}
+    if(perform_request(url, POST, par, nxt) < 0) {
+	return -1;
+    }
 
-	//fprintf(stderr, "passengerDTOs: %s\n", chunk.memory);
-	cJSON *root, *status, *httpstatus, *data;
-	root = cJSON_Parse(chunk.memory);
-	if(!root) {
-	    return 1;
-	}
-	status = cJSON_GetObjectItem(root, "status");
-	httpstatus = cJSON_GetObjectItem(root, "httpstatus");
-	if(!cJSON_IsTrue(status) || !cJSON_IsNumber(httpstatus) || httpstatus->valueint != 200) {
-	    cJSON_Delete(root);
-	    return 1;
-	}
-	data = cJSON_GetObjectItem(root, "data");
-	if(!data) {
-	    cJSON_Delete(root);
-	    return 1;
-	}
-	cJSON *normal_passengers = cJSON_GetObjectItem(data, "normal_passengers");
-	if(!normal_passengers) {
-	    cJSON_Delete(root);
-	    return 1;
-	}
-	int i, size;
-	size = cJSON_GetArraySize(normal_passengers);
-	/*pinfo = (struct passenger_info *) malloc(size * sizeof(struct passenger_info));
-	if(!pinfo) {
-	    cJSON_Delete(root);
-	    return -1;
-	}*/
-	for(i = 0; i < size; i++) {
-	    cJSON *passenger = cJSON_GetArrayItem(normal_passengers, i);
-	    cJSON *param = cJSON_GetObjectItem(passenger, "code");
-	    if(cJSON_IsString(param)) {
-		strncpy(pinfo[i].code, param->valuestring, sizeof(pinfo->code));
-	    }
-	    param = cJSON_GetObjectItem(passenger, "passenger_name");
-	    if(cJSON_IsString(param)) {
-		strncpy(pinfo[i].passenger_name, param->valuestring, sizeof(pinfo->passenger_name));
-	    }
-	    param = cJSON_GetObjectItem(passenger, "sex_code");
-	    if(cJSON_IsString(param)) {
-		strncpy(pinfo[i].sex_code, param->valuestring, sizeof(pinfo->sex_code));
-	    }
-	    param = cJSON_GetObjectItem(passenger, "sex_name");
-	    if(cJSON_IsString(param)) {
-		strncpy(pinfo[i].sex_name, param->valuestring, sizeof(pinfo->sex_name));
-	    }
-	    param = cJSON_GetObjectItem(passenger, "born_date");
-	    if(cJSON_IsString(param)) {
-		strncpy(pinfo[i].born_date, param->valuestring, sizeof(pinfo->born_date));
-	    }
-	    param = cJSON_GetObjectItem(passenger, "country_code");
-	    if(cJSON_IsString(param)) {
-		strncpy(pinfo[i].country_code, param->valuestring, sizeof(pinfo->country_code));
-	    }
-	    param = cJSON_GetObjectItem(passenger, "passenger_id_type_code");
-	    if(cJSON_IsString(param)) {
-		strncpy(pinfo[i].passenger_id_type_code, param->valuestring, sizeof(pinfo->passenger_id_type_code));
-	    }
-	    param = cJSON_GetObjectItem(passenger, "passenger_id_type_name");
-	    if(cJSON_IsString(param)) {
-		strncpy(pinfo[i].passenger_id_type_name, param->valuestring, sizeof(pinfo->passenger_id_type_name));
-	    }
-	    param = cJSON_GetObjectItem(passenger, "passenger_id_no");
-	    if(cJSON_IsString(param)) {
-		strncpy(pinfo[i].passenger_id_no, param->valuestring, sizeof(pinfo->passenger_id_no));
-	    }
-	    param = cJSON_GetObjectItem(passenger, "passenger_type");
-	    if(cJSON_IsString(param)) {
-		strncpy(pinfo[i].passenger_type, param->valuestring, sizeof(pinfo->passenger_type));
-	    }
-	    param = cJSON_GetObjectItem(passenger, "passenger_flag");
-	    if(cJSON_IsString(param)) {
-		strncpy(pinfo[i].passenger_flag, param->valuestring, sizeof(pinfo->passenger_flag));
-	    }
-	    param = cJSON_GetObjectItem(passenger, "passenger_type_name");
-	    if(cJSON_IsString(param)) {
-		strncpy(pinfo[i].passenger_type_name, param->valuestring, sizeof(pinfo->passenger_type_name));
-	    }
-	    param = cJSON_GetObjectItem(passenger, "mobile_no");
-	    if(cJSON_IsString(param)) {
-		strncpy(pinfo[i].mobile_no, param->valuestring, sizeof(pinfo->mobile_no));
-	    }
-	    param = cJSON_GetObjectItem(passenger, "phone_no");
-	    if(cJSON_IsString(param)) {
-		strncpy(pinfo[i].phone_no, param->valuestring, sizeof(pinfo->phone_no));
-	    }
-	    param = cJSON_GetObjectItem(passenger, "email");
-	    if(cJSON_IsString(param)) {
-		strncpy(pinfo[i].email, param->valuestring, sizeof(pinfo->email));
-	    }
-	    param = cJSON_GetObjectItem(passenger, "address");
-	    if(cJSON_IsString(param)) {
-		strncpy(pinfo[i].address, param->valuestring, sizeof(pinfo->address));
-	    }
-	    param = cJSON_GetObjectItem(passenger, "postalcode");
-	    if(cJSON_IsString(param)) {
-		strncpy(pinfo[i].postalcode, param->valuestring, sizeof(pinfo->postalcode));
-	    }
-	    param = cJSON_GetObjectItem(passenger, "first_letter");
-	    if(cJSON_IsString(param)) {
-		strncpy(pinfo[i].first_letter, param->valuestring, sizeof(pinfo->first_letter));
-	    }
-	    param = cJSON_GetObjectItem(passenger, "recordCount");
-	    if(cJSON_IsString(param)) {
-		strncpy(pinfo[i].record_count, param->valuestring, sizeof(pinfo->record_count));
-	    }
-	    param = cJSON_GetObjectItem(passenger, "total_times");
-	    if(cJSON_IsString(param)) {
-		strncpy(pinfo[i].total_times, param->valuestring, sizeof(pinfo->total_times));
-	    }
-	    param = cJSON_GetObjectItem(passenger, "index_id");
-	    if(cJSON_IsString(param)) {
-		strncpy(pinfo[i].index_id, param->valuestring, sizeof(pinfo->index_id));
-	    }
-	    //cJSON_Delete(passenger);
-	}
-	memset(pinfo + i, 0, sizeof(struct passenger_info));
+    //fprintf(stderr, "passengerDTOs: %s\n", chunk.memory);
+    cJSON *root, *status, *httpstatus, *data;
+    root = cJSON_Parse(chunk.memory);
+    if(!root) {
+	return 1;
+    }
+    status = cJSON_GetObjectItem(root, "status");
+    httpstatus = cJSON_GetObjectItem(root, "httpstatus");
+    if(!cJSON_IsTrue(status) || !cJSON_IsNumber(httpstatus) || httpstatus->valueint != 200) {
 	cJSON_Delete(root);
-	return 0;
+	return 1;
+    }
+    data = cJSON_GetObjectItem(root, "data");
+    if(!data) {
+	cJSON_Delete(root);
+	return 1;
+    }
+    cJSON *normal_passengers = cJSON_GetObjectItem(data, "normal_passengers");
+    if(!normal_passengers) {
+	cJSON_Delete(root);
+	return 1;
+    }
+    int i, size;
+    size = cJSON_GetArraySize(normal_passengers);
+    /*pinfo = (struct passenger_info *) malloc(size * sizeof(struct passenger_info));
+      if(!pinfo) {
+      cJSON_Delete(root);
+      return -1;
+      }*/
+    for(i = 0; i < size; i++) {
+	cJSON *passenger = cJSON_GetArrayItem(normal_passengers, i);
+	cJSON *param = cJSON_GetObjectItem(passenger, "code");
+	if(cJSON_IsString(param)) {
+	    strncpy(pinfo[i].code, param->valuestring, sizeof(pinfo->code));
+	}
+	param = cJSON_GetObjectItem(passenger, "passenger_name");
+	if(cJSON_IsString(param)) {
+	    strncpy(pinfo[i].passenger_name, param->valuestring, sizeof(pinfo->passenger_name));
+	}
+	param = cJSON_GetObjectItem(passenger, "sex_code");
+	if(cJSON_IsString(param)) {
+	    strncpy(pinfo[i].sex_code, param->valuestring, sizeof(pinfo->sex_code));
+	}
+	param = cJSON_GetObjectItem(passenger, "sex_name");
+	if(cJSON_IsString(param)) {
+	    strncpy(pinfo[i].sex_name, param->valuestring, sizeof(pinfo->sex_name));
+	}
+	param = cJSON_GetObjectItem(passenger, "born_date");
+	if(cJSON_IsString(param)) {
+	    strncpy(pinfo[i].born_date, param->valuestring, sizeof(pinfo->born_date));
+	}
+	param = cJSON_GetObjectItem(passenger, "country_code");
+	if(cJSON_IsString(param)) {
+	    strncpy(pinfo[i].country_code, param->valuestring, sizeof(pinfo->country_code));
+	}
+	param = cJSON_GetObjectItem(passenger, "passenger_id_type_code");
+	if(cJSON_IsString(param)) {
+	    strncpy(pinfo[i].passenger_id_type_code, param->valuestring, sizeof(pinfo->passenger_id_type_code));
+	}
+	param = cJSON_GetObjectItem(passenger, "passenger_id_type_name");
+	if(cJSON_IsString(param)) {
+	    strncpy(pinfo[i].passenger_id_type_name, param->valuestring, sizeof(pinfo->passenger_id_type_name));
+	}
+	param = cJSON_GetObjectItem(passenger, "passenger_id_no");
+	if(cJSON_IsString(param)) {
+	    strncpy(pinfo[i].passenger_id_no, param->valuestring, sizeof(pinfo->passenger_id_no));
+	}
+	param = cJSON_GetObjectItem(passenger, "passenger_type");
+	if(cJSON_IsString(param)) {
+	    strncpy(pinfo[i].passenger_type, param->valuestring, sizeof(pinfo->passenger_type));
+	}
+	param = cJSON_GetObjectItem(passenger, "passenger_flag");
+	if(cJSON_IsString(param)) {
+	    strncpy(pinfo[i].passenger_flag, param->valuestring, sizeof(pinfo->passenger_flag));
+	}
+	param = cJSON_GetObjectItem(passenger, "passenger_type_name");
+	if(cJSON_IsString(param)) {
+	    strncpy(pinfo[i].passenger_type_name, param->valuestring, sizeof(pinfo->passenger_type_name));
+	}
+	param = cJSON_GetObjectItem(passenger, "mobile_no");
+	if(cJSON_IsString(param)) {
+	    strncpy(pinfo[i].mobile_no, param->valuestring, sizeof(pinfo->mobile_no));
+	}
+	param = cJSON_GetObjectItem(passenger, "phone_no");
+	if(cJSON_IsString(param)) {
+	    strncpy(pinfo[i].phone_no, param->valuestring, sizeof(pinfo->phone_no));
+	}
+	param = cJSON_GetObjectItem(passenger, "email");
+	if(cJSON_IsString(param)) {
+	    strncpy(pinfo[i].email, param->valuestring, sizeof(pinfo->email));
+	}
+	param = cJSON_GetObjectItem(passenger, "address");
+	if(cJSON_IsString(param)) {
+	    strncpy(pinfo[i].address, param->valuestring, sizeof(pinfo->address));
+	}
+	param = cJSON_GetObjectItem(passenger, "postalcode");
+	if(cJSON_IsString(param)) {
+	    strncpy(pinfo[i].postalcode, param->valuestring, sizeof(pinfo->postalcode));
+	}
+	param = cJSON_GetObjectItem(passenger, "first_letter");
+	if(cJSON_IsString(param)) {
+	    strncpy(pinfo[i].first_letter, param->valuestring, sizeof(pinfo->first_letter));
+	}
+	param = cJSON_GetObjectItem(passenger, "recordCount");
+	if(cJSON_IsString(param)) {
+	    strncpy(pinfo[i].record_count, param->valuestring, sizeof(pinfo->record_count));
+	}
+	param = cJSON_GetObjectItem(passenger, "total_times");
+	if(cJSON_IsString(param)) {
+	    strncpy(pinfo[i].total_times, param->valuestring, sizeof(pinfo->total_times));
+	}
+	param = cJSON_GetObjectItem(passenger, "index_id");
+	if(cJSON_IsString(param)) {
+	    strncpy(pinfo[i].index_id, param->valuestring, sizeof(pinfo->index_id));
+	}
+	//cJSON_Delete(passenger);
+    }
+    memset(pinfo + i, 0, sizeof(struct passenger_info));
+    cJSON_Delete(root);
+    return 0;
 }
 
 
 void print_train_info(struct train_info *info)
 {
     struct train_info *p = info;
-    printf("车次\t出发站\t到达站\t出发时间\t到达时间\t历时\t特等座\t一等座\t二等座\t高级软卧\t软卧\t动卧\t硬卧\t软座\t硬座\t无座\t其他\n");
+    printf("%-8s%-14s%-12s%-12s%-12s%-10s%-10s%-10s%-10s%-10s%-10s%-10s%-10s%-10s%-10s%-10s%-10s\n", "车次", "出发站", "到达站", "出发时间", "到达时间", "历时", "特等座", "一等座", "二等座", "高级软卧", "软卧", "动卧", "硬卧", "软座", "硬座", "无座", "其他");
     //wprintw(scr.status, "车次\t出发站\t到达站\t出发时间\t到达时间\t历时\t特等座\t一等座\t二等座\t高级软卧\t软卧\t动卧\t硬卧\t软座\t硬座\t无座\t其他\n");
     while(p->train_no) {
-	printf("%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", p->station_train_code, p->from_station_name, 
+	printf("%-8s%-12s%-12s%-12s%-12s%-10s%-10s%-10s%-10s%-10s%-10s%-10s%-10s%-10s%-10s%-10s%-10s\n", p->station_train_code, p->from_station_name, 
 	//wprintw(scr.status, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", p->station_train_code, p->from_station_telecode, 
 		p->to_station_name, p->start_time, p->arrive_time, p->spend_time, p->swz_num, p->zy_num, p->ze_num, p->gr_num, p->rw_num,
 		p->yb_num, p->yw_num, p->rz_num, p->yz_num, p->wz_num, p->qt_num);
@@ -622,12 +623,36 @@ int perform_request(const char *url, enum request_type type, void *post, struct 
     return 0;
 }
 
+int check_current_train_has_prefix_ticket(struct train_info *ptrain)
+{
+    if(strstr(config._prefer_seat_type, "M") != NULL &&  ptrain->zy_num[0] != '\0') {
+	return 0;
+    } else if(strstr(config._prefer_seat_type, "O") != NULL &&  ptrain->ze_num[0] != '\0') {
+	return 0;
+    } else {
+	return 1;
+    }
+}
+
 int check_current_train_submitable(struct train_info *ptrain)
 {
-	if(ptrain->can_web_buy[0] == 'Y' && strcmp(ptrain->from_station_telecode, config._from_station_telecode) == 0 && strcmp(ptrain->to_station_telecode, config._to_station_telecode) == 0) {
+    char tmp[2];
+    tmp[0] = ptrain->station_train_code[0];
+    tmp[1] = '\0';
+    if(config._prefer_train_no[0] != '\0') {
+	if(strstr(config._prefer_train_no, ptrain->station_train_code) == NULL) {
+	    return 1;
+	}
+	if(check_current_train_has_prefix_ticket(ptrain) == 0) {
 	    return 0;
 	}
-	return 1;
+    }
+    if(ptrain->can_web_buy[0] == 'Y' && 
+	    strstr(config._prefer_train_type, tmp) != NULL && 
+	    check_current_train_has_prefix_ticket(ptrain) == 0) {
+	return 0;
+    }
+    return 1;
 }
 
 int process_train(struct train_info *ptrain)
@@ -678,9 +703,9 @@ int query_ticket()
 	parse_train_info(chunk.memory, train_buffer, t_info);
 	//if(t_info) {
 	print_train_info(t_info);
-	/*if(process_train(t_info) == 0) {
-	  return 0;
-	  }*/
+	if(process_train(t_info) == 0) {
+	    return 0;
+	}
 	//free_ptr_array((void **)t_info);
 	//}
 	//free_train_info(t_info);
@@ -695,7 +720,7 @@ int checkUserIsLogin()
     char url[64];
     char param[32];
 
-    snprintf(url, sizeof(url), "%s%s", BASEURL, "login/checkUser");
+    snprintf(url, sizeof(url), "%s", BASEURL"login/checkUser");
     snprintf(param, sizeof(param), "%s", "_json_att=");
 
     if(perform_request(url, POST, (void *)param, nxt) < 0) {
@@ -731,11 +756,11 @@ int init_my12306()
     char url[128];
     char param[64];
 
-    snprintf(url, sizeof(url), "%s", BASEURL"login/userLogin");
-    perform_request(url, POST, (void *)"_json_att=", nxt);
+    //snprintf(url, sizeof(url), "%s", BASEURL"login/userLogin");
+    //perform_request(url, POST, (void *)"_json_att=", nxt);
     snprintf(url, sizeof(url), "%s", BASEURL"passport?redirect=/otn/login/userLogin");
     perform_request(url, GET, NULL, nxt);
-    snprintf(url, sizeof(url), "%s", "https://kyfw.12306.cn/passport/web/auth/uamtk");
+    snprintf(url, sizeof(url), "https://kyfw.12306.cn/passport/web/auth/uamtk");
     perform_request(url, POST, (void *)"appid=otn", nxt);
     //printf("umatk: %s\n", chunk.memory);
 
@@ -767,34 +792,55 @@ int get_passenger_tickets_for_submit(cJSON *root, char *ptr, size_t size)
 {
     cJSON *limitSeatTicketDTO = cJSON_GetObjectItem(root, "limitBuySeatTicketDTO");
     if(cJSON_IsNull(limitSeatTicketDTO)) {
-	return -1;
+	return 1;
     }
 
     cJSON *seat_type_codes = cJSON_GetObjectItem(limitSeatTicketDTO, "seat_type_codes");
     if(cJSON_IsNull(seat_type_codes)) {
-	return -1;
+	return 1;
     }
     cJSON *seat_obj = cJSON_GetArrayItem(seat_type_codes, 0);
     if(cJSON_IsNull(seat_obj)) {
-	return -1;
+	return 1;
     }
-    cJSON *id = cJSON_GetObjectItem(seat_obj, "id");
-    if(cJSON_IsNull(id)) {
-	return -1;
+    int i;
+    int array_size = cJSON_GetArraySize(seat_obj);
+    for(i = 0; i < array_size; i++) {
+	cJSON *id = cJSON_GetObjectItem(seat_obj, "id");
+	if(!cJSON_IsString(id)) {
+	    return 1;
+	}
+	if(strstr(config._prefer_seat_type, id->valuestring) != NULL) {
+	    strncpy(tinfo.seat_type, id->valuestring, sizeof(tinfo.seat_type));
+	    break;
+	}
     }
-    if(!cJSON_IsString(id)) {
-	return -1;
-    }
-    strncpy(tinfo.seat_type, id->valuestring, sizeof(tinfo.seat_type));
-    int num = snprintf(ptr, size, "%s,0,1,%s,1,%s,%s,N", id->valuestring, pinfo[0].passenger_name, 
-	    	pinfo[0].passenger_id_no, pinfo[0].mobile_no);
+    int num = snprintf(ptr, size, "%s,0,1,%s,1,%s,%s,N", tinfo.seat_type, cur_passenger.passenger_name, 
+	    	cur_passenger.passenger_id_no, cur_passenger.mobile_no);
     return num;
 }
 
 int get_old_passenger_for_submit(char *ptr, size_t size)
 {
-    int num = snprintf(ptr, size, "%s,1,%s,1_", pinfo[0].passenger_name, pinfo[0].passenger_id_no);
+    int num = snprintf(ptr, size, "%s,1,%s,1_", cur_passenger.passenger_name, cur_passenger.passenger_id_no);
     return num;
+}
+
+int set_cur_passenger()
+{
+    int i = 0;
+    while(pinfo[i].code[0]) {
+	if(strcmp(pinfo[i].passenger_name, config._passenger_name) == 0) {
+	    break;
+	}
+	i++;
+    }
+    if(pinfo[i].code[0]) {
+	memcpy(&cur_passenger, pinfo + i, sizeof(struct passenger_info));
+    } else {
+	return 1;
+    }
+    return 0;
 }
 
 int start_submit_order_request(struct train_info *t_info)
@@ -1138,10 +1184,8 @@ int query_order_wait_time()
     }
     if(waitTime->valueint == -1 || waitTime->valueint == -100) {
 	return 0;
-    } else {
-	return 3;
     }
-    return 0;
+    return 3;
 }
 
 int result_order_for_dc_queue(const char *order_no)
@@ -1149,7 +1193,7 @@ int result_order_for_dc_queue(const char *order_no)
     char url[128];
     char param[256];
 
-    snprintf(url, sizeof(url), "%s", BASEURL"confirmPassenger/resultOrderForDcQueue");
+    snprintf(url, sizeof(url), BASEURL"confirmPassenger/resultOrderForDcQueue");
     snprintf(param, sizeof(param), "orderSequence_no=%s&_json_att=&REPEAT_SUBMIT_TOKEN=%s", order_no, tinfo.repeat_submit_token);
 
     if(perform_request(url, POST, param, nxt) < 0) {
@@ -1162,29 +1206,40 @@ int result_order_for_dc_queue(const char *order_no)
 int submit_order_request(struct train_info *t_info)
 {
     struct train_info *ptrain = t_info;
+    printf("开始提交订单请求...\n");
     if(checkUserIsLogin() != 0 && user_login() != 0) {
 	return 1;
     }
+    printf("正在预提交订单请求...\n");
     if(start_submit_order_request(ptrain) == 0) {
+	printf("正在获取预提交令牌环...\n");
 	passenger_initdc();
 	cJSON *root = cJSON_Parse(tinfo.ticketInfoForPassengerForm);
 	if(cJSON_IsNull(root)) {
 	    return 1;
 	}
+	printf("正在获取乘车人信息...\n");
 	get_passenger_dtos(tinfo.repeat_submit_token);
+	set_cur_passenger();
 	get_left_ticket_str(root);
 
+	printf("正在检查预提交订单...\n");
 	int ret = check_order_info(root);
 	if(ret != 0) {
+	    printf("当前需要验证码\n");
 	    if(show_varification_code(1) != 0) {
 		cJSON_Delete(root);
 		return 1;
 	    }
+	} else {
+	    printf("当前无需验证码，继续提交订单...\n");
 	}
+	printf("正在获取排队人数...\n");
 	if(get_queue_count(root, ptrain) != 0) {
 	    cJSON_Delete(root);
 	    return 1;
 	}
+	printf("正在确认订单请求...\n");
 	if(confirm_single_queue(root) != 0) {
 	    cJSON_Delete(root);
 	    return 1;
@@ -1192,13 +1247,16 @@ int submit_order_request(struct train_info *t_info)
 	    return 0;
 	}*/
 	int wait_time;
+	printf("系统出票中，开始等待...\n");
 	while((wait_time = query_order_wait_time()) == 3) {
+	    printf("继续等待系统出票...\n");
 	    sleep(3);
 	}
 	if(wait_time != 0) {
 	    cJSON_Delete(root);
 	    return 1;
 	}
+	printf("系统出票成功，订单已完成\n");
 	result_order_for_dc_queue(tinfo.order_no);
 	cJSON_Delete(root);
 	return 0;

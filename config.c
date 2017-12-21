@@ -16,7 +16,29 @@ int load_config(struct user_config *uc)
 	}
 	parse_config(uc, buffer);
     }
+    fclose(fd);
     return 0;
+}
+
+int string_time_to_number(const char *t)
+{
+
+}
+
+int set_time_level(struct user_config *uc, const char *value)
+{
+    char **f_time = split(value, ',');
+    char **s_time;
+    char **pf = f_time;
+    char **ps;
+    if(f_time == NULL) {
+    }
+    while(*p) {
+	s_time = split(*p, '-');
+	ps = s_time;
+
+	p++;
+    }
 }
 
 int set_config_value(struct user_config *uc, const char *key, const char *value)
@@ -37,6 +59,8 @@ int set_config_value(struct user_config *uc, const char *key, const char *value)
 	uc->_aways_queue = (int)strtol(value, NULL, 10);
     } else if(strcmp(key, "prefer_train_type") == 0) {
 	strcpy(uc->_prefer_train_type, value);
+    } else if(strcmp(key, "prefer_train_no") == 0) {
+	strcpy(uc->_prefer_train_no, value);
     } else if(strcmp(key, "prefer_seat_type") == 0) {
 	strcpy(uc->_prefer_seat_type, value);
     } else if(strcmp(key, "prefer_ticket_time") == 0) {
@@ -51,6 +75,10 @@ int set_config_value(struct user_config *uc, const char *key, const char *value)
 	strcpy(uc->_mail_password, value);
     } else if(strcmp(key, "mail_server") == 0) {
 	strcpy(uc->_mail_server, value);
+    } else if(strcmp(key, "prefer_ticket_time") == 0) {
+	char **sp_time = split(value, ',');
+	if(sp_time == NULL) {
+	}
     }
     return 0;
 }
@@ -89,3 +117,4 @@ void print_config(struct user_config *uc)
 	    uc->_prefer_ticket_time, uc->_use_cdn_server_file, uc->_passenger_name,
 	    uc->_mail_username, uc->_mail_password, uc->_mail_server);
 }
+
