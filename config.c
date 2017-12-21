@@ -17,7 +17,7 @@ int load_config(struct user_config *uc)
 	parse_config(uc, buffer);
     }
     if(uc->_query_ticket_interval == 0) {
-	uc->_query_ticket_interval = 3;
+	uc->_query_ticket_interval = 3000;
     }
     fclose(fd);
     return 0;
