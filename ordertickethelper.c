@@ -28,15 +28,15 @@ int main(int argc, char *argv[])
     //init_curl();
     //init_buffer();
 
-    clock_t t1, t2;
+    /*clock_t t1, t2;
     t1 = clock();
     if(checkUserIsLogin() != 0) {
 	user_login();
     }
     t2 = clock();
-    printf("checkUserIsLogin time: %lu\n", t2 - t1);
+    printf("checkUserIsLogin time: %lu\n", t2 - t1);*/
     //show_varification_code();
-    query_ticket();
+    //query_ticket();
 
     do_cleanup();
     return 0;
@@ -629,6 +629,8 @@ int check_current_train_has_prefix_ticket(struct train_info *ptrain)
 	return 0;
     } else if(strstr(config._prefer_seat_type, "O") != NULL &&  ptrain->ze_num[0] != '\0') {
 	return 0;
+    } else if(strstr(config._prefer_seat_type, "1") != NULL &&  ptrain->yz_num[0] != '\0') {
+	return 0;
     } else {
 	return 1;
     }
@@ -639,6 +641,9 @@ int check_current_train_submitable(struct train_info *ptrain)
     char tmp[2];
     tmp[0] = ptrain->station_train_code[0];
     tmp[1] = '\0';
+    if(ptrain->can_web_buy[0] != 'Y') {
+	return 1;
+    }
     if(config._prefer_train_no[0] != '\0') {
 	if(strstr(config._prefer_train_no, ptrain->station_train_code) == NULL) {
 	    return 1;
@@ -647,9 +652,23 @@ int check_current_train_submitable(struct train_info *ptrain)
 	    return 0;
 	}
     }
-    if(ptrain->can_web_buy[0] == 'Y' && 
-	    strstr(config._prefer_train_type, tmp) != NULL && 
-	    check_current_train_has_prefix_ticket(ptrain) == 0) {
+    if(config._prefer_train_type[0] != 0) {
+	if(strstr(config._prefer_train_type, tmp) == NULL) {
+	    return 1;
+	}
+    }
+    int i = 0;
+    while(config._t_level[i].time_start[0] != 0) {
+	if(strcmp(ptrain->start_time, config._t_level[i].time_start) >= 0 &&
+		strcmp(ptrain->start_time, config._t_level[i].time_end) <= 0) {
+	    break;
+	}
+	i++;
+    }
+    if(config._t_level[i].time_start[0] == 0 && i != 0) {
+	return 1;
+    }
+    if(check_current_train_has_prefix_ticket(ptrain) == 0) {
 	return 0;
     }
     return 1;

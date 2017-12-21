@@ -16,13 +16,11 @@ int load_config(struct user_config *uc)
 	}
 	parse_config(uc, buffer);
     }
+    if(uc->_query_ticket_interval == 0) {
+	uc->_query_ticket_interval = 3;
+    }
     fclose(fd);
     return 0;
-}
-
-int string_time_to_number(const char *t)
-{
-
 }
 
 int set_time_level(struct user_config *uc, const char *value)
@@ -30,15 +28,32 @@ int set_time_level(struct user_config *uc, const char *value)
     char **f_time = split(value, ',');
     char **s_time;
     char **pf = f_time;
-    char **ps;
+    int i = 0;
     if(f_time == NULL) {
+	s_time = split(value, '-');
+	if(s_time != NULL) {
+	    if(s_time[0] && s_time[1]) {
+		strncpy(uc->_t_level[0].time_start, s_time[0], sizeof(uc->_t_level[0].time_start));
+		strncpy(uc->_t_level[0].time_end, s_time[1], sizeof(uc->_t_level[0].time_end));
+	    }
+	    free_ptr_array((void **)s_time);
+	}
+	return 0;
     }
-    while(*p) {
-	s_time = split(*p, '-');
-	ps = s_time;
-
-	p++;
+    while(*pf) {
+	s_time = split(*pf, '-');
+	if(s_time != NULL) {
+	    if(s_time[0] && s_time[1]) {
+		strncpy(uc->_t_level[i].time_start, s_time[0], sizeof(uc->_t_level[i].time_start));
+		strncpy(uc->_t_level[i].time_end, s_time[1], sizeof(uc->_t_level[i].time_end));
+	    }
+	    free_ptr_array((void **)s_time);
+	}
+	pf++;
+	i++;
     }
+    free_ptr_array((void **)f_time);
+    return 0;
 }
 
 int set_config_value(struct user_config *uc, const char *key, const char *value)
@@ -64,7 +79,8 @@ int set_config_value(struct user_config *uc, const char *key, const char *value)
     } else if(strcmp(key, "prefer_seat_type") == 0) {
 	strcpy(uc->_prefer_seat_type, value);
     } else if(strcmp(key, "prefer_ticket_time") == 0) {
-	strcpy(uc->_prefer_ticket_time, value);
+	//strcpy(uc->_prefer_ticket_time, value);
+	set_time_level(uc, value);
     } else if(strcmp(key, "use_cdn_server_file") == 0) {
 	strcpy(uc->_use_cdn_server_file, value);
     } else if(strcmp(key, "passenger_name") == 0) {
@@ -75,10 +91,6 @@ int set_config_value(struct user_config *uc, const char *key, const char *value)
 	strcpy(uc->_mail_password, value);
     } else if(strcmp(key, "mail_server") == 0) {
 	strcpy(uc->_mail_server, value);
-    } else if(strcmp(key, "prefer_ticket_time") == 0) {
-	char **sp_time = split(value, ',');
-	if(sp_time == NULL) {
-	}
     }
     return 0;
 }
@@ -114,7 +126,12 @@ void print_config(struct user_config *uc)
     printf("username: %s.\npassword: %s.\nstart_tour_date: %s.\nfrom_station_name: %s.\nto_station_name: %s.\nquery_ticket_interval: %d.\naways_queue: %d.\nprefer_train_type: %s.\nrefer_seat_type: %s.\nprefer_ticket_time: %s.\nuse_cdn_server_file: %s.\npassenger_name: %s.\nmail_username: %s.\nmail_password: %s.\nmail_server: %s.\n", uc->_username, uc->_password, uc->_start_tour_date,
 	    uc->_from_station_name, uc->_to_station_name, uc->_query_ticket_interval, 
 	    uc->_aways_queue, uc->_prefer_train_type, uc->_prefer_seat_type, 
-	    uc->_prefer_ticket_time, uc->_use_cdn_server_file, uc->_passenger_name,
+	    "undefind", uc->_use_cdn_server_file, uc->_passenger_name,
 	    uc->_mail_username, uc->_mail_password, uc->_mail_server);
+    int i = 0;
+    while(uc->_t_level[i].time_start[0]) {
+	printf("time_start: %s, time_end: %s\n", uc->_t_level[i].time_start, uc->_t_level[i].time_end);
+	i++;
+    }
 }
 
