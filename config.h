@@ -6,8 +6,8 @@
 #include "utils.h"
 
 struct time_level {
-    int time_start;
-    int time_end;
+    char time_start[16];
+    char time_end[16];
 };
 
 struct user_config {
@@ -20,11 +20,11 @@ struct user_config {
     char _to_station_telecode[8];
     int _query_ticket_interval;
     int _aways_queue;
-    struct time_level[8];
+    struct time_level _t_level[16];
     char _prefer_train_type[32];
     char _prefer_train_no[512];
     char _prefer_seat_type[16];
-    char _prefer_ticket_time[32];
+    //char _prefer_ticket_time[32];
     char _use_cdn_server_file[32];
     char _passenger_name[16];
     char _mail_username[64];

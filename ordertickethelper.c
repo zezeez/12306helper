@@ -28,14 +28,9 @@ int main(int argc, char *argv[])
     //init_curl();
     //init_buffer();
 
-    clock_t t1, t2;
-    t1 = clock();
     if(checkUserIsLogin() != 0) {
 	user_login();
     }
-    t2 = clock();
-    printf("checkUserIsLogin time: %lu\n", t2 - t1);
-    //show_varification_code();
     query_ticket();
 
     do_cleanup();
@@ -212,15 +207,7 @@ int parse_train_info(const char *s, char (*t_buffer)[512], struct train_info *ti
     int i;
     struct common_list *fs_name;
     struct common_list *es_name;
-    /*clock_t t1, t2;
-    t1 = clock();
-    struct train_info *t_info;
-    int t_size = 64;
-    t_info = (struct train_info *) malloc(t_size * sizeof(struct train_info));
-    if(t_info == NULL) {
-	perror("malloc: ");
-	return NULL;
-    }*/
+
     for(i = 0; i < size; i++) {
 	cJSON *item = cJSON_GetArrayItem(result, i);
 	if(cJSON_IsNull(item)) {
@@ -241,29 +228,8 @@ int parse_train_info(const char *s, char (*t_buffer)[512], struct train_info *ti
 	}
 	(ti + i)->from_station_name = ((struct station_name *) fs_name->data)->name;
 	(ti + i)->to_station_name = ((struct station_name *) es_name->data)->name;
-
-	/*char **train = split(pitem + 1, '|');
-	cJSON_free(pitem);
-	if(train == NULL) {
-	    return NULL;
-	}
-	if(i >= t_size - 1) {
-	    t_info = (struct train_info *) realloc(t_info, t_size * sizeof(struct train_info) * 2);
-	    if(t_info == NULL) {
-		perror("realloc: ");
-		free_ptr_array((void **)train);
-		return NULL;
-	    }
-	    t_size += t_size;
-	}
-	memcpy(t_info + i, train, sizeof(struct train_info));
-	//free_ptr_array((void **)train);
-	free(train);*/
     }
     memset(ti + i, 0, sizeof(struct train_info));
-    /*t2 = clock();
-    printf("total object: %d\n", size);
-    printf("spend time: %lu\n", t2 - t1);*/
     cJSON_Delete(response);
     return 0;
 fail:
@@ -284,8 +250,6 @@ start_login()
 	return -1;
     }
     cJSON *ret_json = cJSON_Parse(chunk.memory);
-    //char *str_json = cJSON_Print(ret_json);
-    //printf("json: %s\n", str_json);
     if(cJSON_IsNull(ret_json)) {
 	    fprintf(stderr, "error while parse json data.\n");
 	    return -1;
@@ -294,11 +258,9 @@ start_login()
     if(cJSON_IsNumber(ret_code) && ret_code->valueint == 0) {
 	init_my12306();
 	cJSON_Delete(ret_json);
-	//free(str_json);
 	return 0;
     }
     cJSON_Delete(ret_json);
-    //free(str_json);
     return 1;
 }
 
@@ -479,11 +441,6 @@ int get_passenger_dtos(const char *repeat_token)
     }
     int i, size;
     size = cJSON_GetArraySize(normal_passengers);
-    /*pinfo = (struct passenger_info *) malloc(size * sizeof(struct passenger_info));
-      if(!pinfo) {
-      cJSON_Delete(root);
-      return -1;
-      }*/
     for(i = 0; i < size; i++) {
 	cJSON *passenger = cJSON_GetArrayItem(normal_passengers, i);
 	cJSON *param = cJSON_GetObjectItem(passenger, "code");
@@ -629,6 +586,8 @@ int check_current_train_has_prefix_ticket(struct train_info *ptrain)
 	return 0;
     } else if(strstr(config._prefer_seat_type, "O") != NULL &&  ptrain->ze_num[0] != '\0') {
 	return 0;
+    } else if(strstr(config._prefer_seat_type, "1") != NULL &&  ptrain->yz_num[0] != '\0') {
+	return 0;
     } else {
 	return 1;
     }
@@ -639,6 +598,9 @@ int check_current_train_submitable(struct train_info *ptrain)
     char tmp[2];
     tmp[0] = ptrain->station_train_code[0];
     tmp[1] = '\0';
+    if(ptrain->can_web_buy[0] != 'Y') {
+	return 1;
+    }
     if(config._prefer_train_no[0] != '\0') {
 	if(strstr(config._prefer_train_no, ptrain->station_train_code) == NULL) {
 	    return 1;
@@ -647,9 +609,20 @@ int check_current_train_submitable(struct train_info *ptrain)
 	    return 0;
 	}
     }
-    if(ptrain->can_web_buy[0] == 'Y' && 
-	    strstr(config._prefer_train_type, tmp) != NULL && 
-	    check_current_train_has_prefix_ticket(ptrain) == 0) {
+    if(config._prefer_train_type[0] != 0) {
+	if(strstr(config._prefer_train_type, tmp) == NULL) {
+	    return 1;
+	}
+    }
+    int i = 0;
+    while(config._t_level[i].time_start[0] != 0) {
+	if(strcmp(ptrain->start_time, config._t_level[i].time_start) < 0 || 
+		strcmp(ptrain->start_time, config._t_level[i].time_end) > 0) {
+	    return 1;
+	}
+	i++;
+    }
+    if(check_current_train_has_prefix_ticket(ptrain) == 0) {
 	return 0;
     }
     return 1;
@@ -669,20 +642,14 @@ int process_train(struct train_info *ptrain)
     return 1;
 }
 
-/*int free_train_info(struct train_info *ptr)
-{
-    while(ptr->pbuff) {
-	free(ptr->pbuff);
-	ptr++;
-    }
-    return 0;
-}*/
-
 int query_ticket()
 {
     char url[256];
     struct train_info t_info[512];
     char train_buffer[512][512];
+    struct timespec t;
+    t.tv_sec = config._query_ticket_interval / 1000;
+    t.tv_nsec = config._query_ticket_interval % 1000 * 1000000;
 
     //curl_easy_setopt(curl, CURLOPT_NOBODY, 0L);
 
@@ -693,7 +660,7 @@ int query_ticket()
 
     while(1) {
 	if(perform_request(url, GET, NULL, nxt) < 0) {
-	    sleep(3);
+	    nanosleep(&t, NULL);
 	    continue;
 	}
 	//nxt = nxt->next;
@@ -709,9 +676,8 @@ int query_ticket()
 	//free_ptr_array((void **)t_info);
 	//}
 	//free_train_info(t_info);
-	sleep(config._query_ticket_interval);
+	nanosleep(&t, NULL);
     }
-    //clear_list(cache);
     return 1;
 }
 
