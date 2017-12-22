@@ -672,9 +672,9 @@ int query_ticket()
 	}
 	parse_train_info(root, t_info);
 	print_train_info(t_info);
-	/*if(process_train(t_info) == 0) {
+	if(process_train(t_info) == 0) {
 	    return 0;
-	}*/
+	}
 	cJSON_Delete(root);
 	nanosleep(&t, NULL);
     }
@@ -1095,7 +1095,7 @@ int confirm_single_queue(cJSON *json)
     if(perform_request(url, POST, param, nxt) < 0) {
 	return -1;
     }
-    printf("confirmPassengerSingleForQueue result: %s\n", chunk.memory);
+    //printf("confirmPassengerSingleForQueue result: %s\n", chunk.memory);
     cJSON *root = cJSON_Parse(chunk.memory);
     if(cJSON_IsNull(root)) {
 	return 1;
@@ -1192,7 +1192,11 @@ int submit_order_request(struct train_info *t_info)
 	}
 	printf("正在获取乘车人信息...\n");
 	get_passenger_dtos(tinfo.repeat_submit_token);
-	set_cur_passenger();
+	if(set_cur_passenger() != 0) {
+	    printf("No such passenger: %s\n", config._passenger_name);
+	    do_cleanup();
+	    exit(3);
+	}
 	get_left_ticket_str(root);
 
 	printf("正在检查预提交订单...\n");
@@ -1228,9 +1232,13 @@ int submit_order_request(struct train_info *t_info)
 	    cJSON_Delete(root);
 	    return 1;
 	}
-	query_order_wait_time();
+	//query_order_wait_time();
 	printf("系统出票成功，预订已完成，请在30分钟内支付以完成订单\n");
-	result_order_for_dc_queue(tinfo.order_no);
+	if(config._mail_username[0] != 0 && config._mail_password[0] != 0 && config._mail_server[0] != 0) {
+	    setup_mail(&config, t_info);
+	    printf("email has been send.\n");
+	}
+	//result_order_for_dc_queue(tinfo.order_no);
 	cJSON_Delete(root);
 	return 0;
     }

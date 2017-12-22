@@ -145,5 +145,5 @@ int init_user_screen();
 int fill_user_config_telecode();
 extern void *show_varification_code_main(void *);
 static void sig_handler(int);
-extern int setup_mail(struct user_config *);
+extern int setup_mail(struct user_config *, struct train_info *);
 #endif

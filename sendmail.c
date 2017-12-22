@@ -9,9 +9,8 @@
 #include <sys/time.h>  
 #include <netdb.h>  
 #include "config.h"
+#include "ordertickethelper.h"
   
-  
-#define TEST_IMG     ("test.png")  
 static char base64_table[64] =  
 {  
     'A', 'B', 'C', 'D', 'E', 'F', 'G',  
@@ -32,12 +31,8 @@ int base64_encode(unsigned char *buf, int nLen, char *pOutBuf, int nBufSize);
 void sendemail(struct user_config *, char *body);  
 int open_socket(struct sockaddr *addr);  
   
-int setup_mail(struct user_config *uc)  
+int setup_mail(struct user_config *uc, struct train_info *t_info)  
 {  
-    FILE * fp = NULL;  
-    char buf[128] = {0};  
-    char outbuf[256] = {0};  
-    char *body = NULL;  
     //char email[] = "smtp.163.com";  
     /*char bodyHead[] = "From: \"gxzpljj\"<gxzpljj@163.com>\r\n"  
         "To:  \"gxzpljj\"<gxzpljj@163.com>\r\n"  
@@ -58,54 +53,12 @@ int setup_mail(struct user_config *uc)
         "\r\n\r\n"; 
          */ 
     char bodyHead[1024];
-    snprintf(bodyHead, sizeof(bodyHead), "From: \"%s\"<%s>\r\nTo \"%s\"<%s>\r\nMIME-Version:1.0\r\nContent-Type:text/plain;boundary=\"---=_NextPart_000_0050_01C\"\r\nSubject:%s\r\n\r\n%s\r\n\r\n", uc->_mail_username, uc->_mail_username, uc->_mail_username, uc->_mail_username,
-	    "Text", "This is test email");
-    //char bodyend[] = "\r\n-----=_NextPart_000_0050_01C\r\n";  
-  
-    /*body = malloc(8 * 1024 * 1024);  
-    if(NULL == body)  
-    {  
-        perror("malloc(): ");  
-        return -1;  
-    }  
-  
-    memset(body, 0x0, 8*1024*1024);  
-  
-    sprintf(body, bodyHead);  */
-      
-    /*fp = fopen(TEST_IMG, "rb");  
-    if(fp == NULL)  
-    {  
-        perror("fopen(): ");  
-        return -1;  
-    }  
-  
-    memset(buf, 0x0, 128);  
-    memset(outbuf, 0x0, 256);  
-    int len = 0;  
-    char *ptr = NULL;  
-    ptr = body + strlen(body);  
-    while((len = fread(buf, sizeof(char), 60, fp)) > 0)  
-    {  
-        base64_encode(buf, len, outbuf, sizeof(outbuf));  
-        len = sprintf(outbuf, "%s\r\n", outbuf);  
-        printf("len :  %d\n", len);  
-        sprintf(ptr, outbuf);  
-        memset(buf, 0x0, 128);  
-        memset(outbuf, 0x0, 256);  
-        ptr += len;  
-    } */ 
-  
-    /*sprintf(ptr, "\r\n\r\n");  
-    ptr += strlen("\r\n\r\n");  */
-    //strcat(bodyHead, "\r\n\r\n");
-    //sprintf(ptr, bodyend);  
-    //strcat(bodyHead, bodyend);
-    sendemail(uc, bodyHead);  
-  
-    //fclose(fp);  
-    //free(body);  
-  
+    snprintf(bodyHead, sizeof(bodyHead), "From: \"%s\"<%s>\r\nTo \"%s\"<%s>\r\nMIME-Version:1.0\r\nContent-Type:text/html;boundary=\"---=_NextPart_000_0050_01C\"\r\nSubject:Tickethelper notification\r\n\r\n"
+	    "&nbsp;&nbsp;You recieve this email because you use tickethelper to order ticket at <a href=\"https://kyfw.12306.cn\">12306</a>. Congratulations a ticket is ready for you from %s to %s at %s %s, please pay your order at <a href=\"https://kyfw.12306.cn\">12306</a> as soon as possible or your order will be canceled.<br />&nbsp;&nbsp;Thanks for using tickethelper.\r\n\r\n", 
+	    uc->_mail_username, uc->_mail_username, uc->_mail_username, uc->_mail_username, t_info->from_station_name, t_info->to_station_name, t_info->start_train_date, t_info->start_time);
+
+    sendemail(uc, bodyHead);
+
     return 0;  
 }  
   
@@ -170,11 +123,11 @@ int base64_encode(unsigned char* pBase64, int nLen, char* pOutBuf, int nBufSize)
 void sendemail(struct user_config *uc, char *body)  
 {  
     int sockfd = 0;  
-    struct sockaddr_in their_addr = {0};  
-    char buf[1500] = {0};  
-    char rbuf[1500] = {0};  
-    char login[128] = {0};  
-    char pass[128] = {0};  
+    struct sockaddr_in their_addr;
+    char buf[1500]; 
+    char rbuf[1500];
+    char login[128];
+    char pass[128];
     struct hostent *host = NULL;  
   
     if((host = gethostbyname(uc->_mail_server))==NULL)/*取得主机IP地址*/  
@@ -189,117 +142,94 @@ void sendemail(struct user_config *uc, char *body)
     their_addr.sin_addr = *((struct in_addr *)host->h_addr);  
   
     sockfd = open_socket((struct sockaddr *)&their_addr);  
-    memset(rbuf, 0, 1500);  
-    printf("ready\n");
-    while(recv(sockfd, rbuf, 1500, 0) == 0)  
+    //memset(rbuf, 0, 1500);  
+    while(recv(sockfd, rbuf, sizeof(rbuf), 0) == 0)  
     {  
         printf("reconnect..\n");  
-  
         close(sockfd);  
         sleep(2);  
         sockfd = open_socket((struct sockaddr *)&their_addr);  
-  
-        memset(rbuf, 0, 1500);  
+        //memset(rbuf, 0, 1500);  
     }  
   
-    printf("%s\n", rbuf);  
-  
     /* EHLO */  
-  
-    memset(buf, 0, 1500);  
+    //memset(buf, 0, 1500);  
     sprintf(buf, "EHLO newer-PC\r\n");  
   
     send(sockfd, buf, strlen(buf), 0);  
-    memset(rbuf, 0, 1500);  
-    recv(sockfd, rbuf, 1500, 0);  
-    printf("%s\n", rbuf);  
+    //memset(rbuf, 0, 1500);  
+    recv(sockfd, rbuf, sizeof(rbuf), 0);  
+    //printf("%s\n", rbuf);  
   
     /*AUTH LOGIN  */  
-    memset(buf, 0, 1500);  
+    //memset(buf, 0, 1500);  
     sprintf(buf, "AUTH LOGIN\r\n");  
     send(sockfd, buf, strlen(buf), 0);  
   
-    printf("%s\n", buf);  
-    memset(rbuf, 0, 1500);  
-    recv(sockfd, rbuf, 1500, 0);  
-    printf("%s\n", rbuf);  
+    //memset(rbuf, 0, 1500);  
+    recv(sockfd, rbuf, sizeof(rbuf), 0); 
   
     /* USER */  
-    memset(buf, 0, 1500);  
+    //memset(buf, 0, 1500);  
   
     //sprintf(buf, "test@163.com");  
-    memset(login, 0, 128);  
+    //memset(login, 0, sizeof(login));  
   
-    base64_encode(uc->_mail_username, strlen(uc->_mail_username), login, 128);                   /* base64 */  
+    base64_encode((unsigned char *)uc->_mail_username, strlen(uc->_mail_username), login, 128);                   /* base64 */  
   
     sprintf(buf, "%s\r\n", login);  
     send(sockfd, buf, strlen(buf), 0);  
-    printf("%s\n", buf);  
-  
-    memset(rbuf, 0, 1500);  
-  
-    recv(sockfd, rbuf, 1500, 0);  
-    printf("%s\n", rbuf);  
+    //memset(rbuf, 0, 1500);  
+    recv(sockfd, rbuf, sizeof(rbuf), 0);  
   
     /* PASSWORD */  
-    memset(buf, 0, 1500);  
+    //memset(buf, 0, 1500);  
     //sprintf(buf, "test");  
-    memset(pass, 0, 128);  
+    //memset(pass, 0, 128);  
   
-    base64_encode(uc->_mail_password, strlen(uc->_mail_password), pass, 128);  
-    memset(buf, 0, 1500);  
+    base64_encode((unsigned char *)uc->_mail_password, strlen(uc->_mail_password), pass, 128);  
     sprintf(buf, "%s\r\n", pass);  
     send(sockfd, buf, strlen(buf), 0);  
   
-    printf("%s, %d\n", buf, __LINE__);  
+    //printf("%s, %d\n", buf, __LINE__);  
   
-    memset(rbuf, 0, 1500);  
-    recv(sockfd, rbuf, 1500, 0);  
-    printf("%s, %d\n", rbuf, __LINE__);  
+    //memset(rbuf, 0, 1500);  
+    recv(sockfd, rbuf, sizeof(rbuf), 0);  
+    //printf("%s, %d\n", rbuf, __LINE__);  
   
     /* MAIL FROM */  
-    memset(buf, 0, 1500);  
     snprintf(buf, sizeof(buf), "MAIL FROM: <%s>\r\n", uc->_mail_username);  
     send(sockfd, buf, strlen(buf), 0);  
   
-    memset(rbuf, 0, 1500);  
-    recv(sockfd, rbuf, 1500, 0);  
-    printf("%s\n", rbuf);  
+    //memset(rbuf, 0, 1500);  
+    recv(sockfd, rbuf, sizeof(rbuf), 0);  
   
     /* rcpt to 第一个收件人 */  
     snprintf(buf, sizeof(buf), "RCPT TO:<%s>\r\n", uc->_mail_username);  
     send(sockfd, buf, strlen(buf), 0);  
   
-    memset(rbuf, 0, 1500);  
-    recv(sockfd, rbuf, 1500, 0);  
-  
-    printf("%s\n", rbuf);  
+    //memset(rbuf, 0, 1500);  
+    recv(sockfd, rbuf, sizeof(rbuf), 0);  
   
     /* DATA email connext ready  */  
     sprintf(buf, "DATA\r\n");  
     send(sockfd, buf, strlen(buf), 0);  
   
-    memset(rbuf, 0, 1500);  
-    recv(sockfd, rbuf, 1500, 0);  
-    printf("%s\n", rbuf);  
+    //memset(rbuf, 0, 1500);  
+    recv(sockfd, rbuf, sizeof(rbuf), 0);  
   
     /* send email connext \r\n.\r\n end*/  
     sprintf(buf, "%s\r\n.\r\n", body);  
     send(sockfd, buf, strlen(buf), 0);  
-    memset(rbuf, 0, 1500);  
-    recv(sockfd, rbuf, 1500, 0);  
-    printf("%s\n", rbuf);  
+    //memset(rbuf, 0, 1500);  
+    recv(sockfd, rbuf, sizeof(rbuf), 0);  
   
     /* QUIT */  
     sprintf(buf, "QUIT\r\n");  
     send(sockfd, buf, strlen(buf), 0);  
-    memset(rbuf, 0, 1500);  
+    //memset(rbuf, 0, 1500);  
   
-    recv(sockfd, rbuf, 1500, 0);  
-    printf("%s\n", rbuf);  
-  
-    return ;  
-  
+    recv(sockfd, rbuf, sizeof(rbuf), 0);  
 }  
   
 int open_socket(struct sockaddr *addr)  
