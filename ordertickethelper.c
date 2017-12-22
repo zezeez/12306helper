@@ -1,19 +1,5 @@
 #include "ordertickethelper.h"
 
-static CURL *curl;
-static CURLcode res;
-static struct curl_slist *host_list = NULL;
-static struct response_data chunk;
-struct common_list *all_stations;
-struct common_list *cached_stations;
-static struct curl_slist *nxt;
-static struct passenger_info pinfo[16];
-static struct passenger_info cur_passenger;
-static struct ticket_info tinfo;
-static struct screen_param scr;
-struct user_config config;
-
-extern int setup_mail(struct user_config *);
 int main(int argc, char *argv[])
 {
     if(signal(SIGINT, sig_handler) == SIG_ERR) {
@@ -22,7 +8,11 @@ int main(int argc, char *argv[])
     if(signal(SIGTERM, sig_handler) == SIG_ERR) {
 	perror("signal: ");
     }
-    do_init();
+    if(do_init() < 0) {
+	fprintf(stderr, "initialize failed.\n");
+	do_cleanup();
+	return 1;
+    }
 
     //init_user_screen();
     //init_curl();
@@ -70,7 +60,6 @@ int init_curl()
     nxt = host_list;
 
     //curl_easy_setopt(curl, CURLOPT_NOBODY, 1l);
-    //perform_request("https://kyfw.12306.cn/otn/login/init", GET, NULL, host_list);
     return 0;
 }
 
@@ -82,7 +71,10 @@ int do_init()
     init_list(&cached_stations);
 
     load_stations_name(all_stations);
-    load_config(&config);
+    if(load_config(&config) < 0) {
+	fprintf(stderr, "load configuration fail, check is tickethelper.conf exist.\n");
+	return -1;
+    }
     fill_user_config_telecode();
     print_config(&config);
     return 0;
@@ -94,18 +86,26 @@ int fill_user_config_telecode()
     fs_code = find_node(cached_stations, config._from_station_name, find_station_code);
     if(fs_code == NULL) {
 	fs_code = find_node(all_stations, config._from_station_name, find_station_code);
+	if(fs_code == NULL) {
+	    fprintf(stderr, "No such station: %s, perhaps you need to update station_name.txt", config._from_station_name);
+	    do_cleanup();
+	    exit(2);
+	}
 	insert_node(cached_stations, fs_code->data, insert_station_name);
     }
-    //config._from_station_telecode = ((struct station_name *) fs_code->data)->code;
-    strcpy(config._from_station_telecode, ((struct station_name *) fs_code->data)->code);
+    strncpy(config._from_station_telecode, ((struct station_name *) fs_code->data)->code, sizeof(config._from_station_telecode));
 
     ts_code = find_node(cached_stations, config._to_station_name, find_station_code);
     if(ts_code == NULL) {
 	ts_code = find_node(all_stations, config._to_station_name, find_station_code);
+	if(ts_code == NULL) {
+	    fprintf(stderr, "No such station: %s, perhaps you need to update station_name.txt", config._to_station_name);
+	    do_cleanup();
+	    exit(2);
+	}
 	insert_node(cached_stations, ts_code->data, insert_station_name);
     }
-    //config._to_station_telecode = ((struct station_name *) ts_code->data)->code;
-    strcpy(config._to_station_telecode, ((struct station_name *) ts_code->data)->code);
+    strncpy(config._to_station_telecode, ((struct station_name *) ts_code->data)->code, sizeof(config._to_station_telecode));
     //printf("from_station_telecode: %s, to_station_telecode: %s\n", config._from_station_telecode, config._to_station_telecode);
     return 0;
 }
@@ -164,20 +164,14 @@ int do_cleanup()
     free(chunk.memory);
     //free_ptr_array((void **)s_name);
     clear_list(all_stations, remove_station_name);
+    free(cached_stations);
     //clear_list(cached_stations, remove_station_name);
     return 0;
 }
 
-int parse_train_info(const char *s, char (*t_buffer)[512], struct train_info *ti)
+int parse_train_info(cJSON *response, struct train_info *ti)
 {
-    cJSON *response = cJSON_Parse(s);
-    if(response == NULL) {
-	return 1;
-    }
     cJSON *status = cJSON_GetObjectItem(response, "status");
-    if(status == NULL || !cJSON_IsBool(status)) {
-	goto fail;
-    }
     if(!cJSON_IsTrue(status)) {
 	cJSON *msg = cJSON_GetObjectItem(response, "messages");
 	if(!cJSON_IsNull(msg)) {
@@ -186,22 +180,22 @@ int parse_train_info(const char *s, char (*t_buffer)[512], struct train_info *ti
 	    //wprintw(scr.status, "error: %s\n", err_msg);
 	    free(err_msg);
 	}
-	goto fail;
+	return 1;
     }
     cJSON *data = cJSON_GetObjectItem(response, "data");
-    if(data == NULL) {
-	goto fail;
+    if(cJSON_IsNull(data)) {
+	return 1;
     }
     cJSON *flag = cJSON_GetObjectItem(data, "flag");
-    if(flag == NULL || !cJSON_IsString(flag)) {
-	goto fail;
+    if(!cJSON_IsString(flag)) {
+	return 1;
     }
     if(strcmp(flag->valuestring, "1")) {
-	goto fail;
+	return 1;
     }
     cJSON *result = cJSON_GetObjectItem(data, "result");
-    if(result == NULL || !cJSON_IsArray(result)) {
-	goto fail;
+    if(!cJSON_IsArray(result)) {
+	return 1;
     }
     int size = cJSON_GetArraySize(result);
     int i;
@@ -211,11 +205,11 @@ int parse_train_info(const char *s, char (*t_buffer)[512], struct train_info *ti
     for(i = 0; i < size; i++) {
 	cJSON *item = cJSON_GetArrayItem(result, i);
 	if(cJSON_IsNull(item)) {
-	    goto fail;
+	    return 1;
 	}
 	//printf("train info: %s\n", item->valuestring);
-	strncpy(t_buffer[i], item->valuestring, 512);
-	parse_peer_train(t_buffer[i], ti + i);
+	//strncpy(t_buffer[i], item->valuestring, sizeof(t_buffer[i]));
+	parse_peer_train(item->valuestring, ti + i);
 	fs_name = find_node(cached_stations, (ti + i)->from_station_telecode, find_station_name);
 	if(fs_name == NULL) {
 	    fs_name = find_node(all_stations, (ti + i)->from_station_telecode, find_station_name);
@@ -230,18 +224,14 @@ int parse_train_info(const char *s, char (*t_buffer)[512], struct train_info *ti
 	(ti + i)->to_station_name = ((struct station_name *) es_name->data)->name;
     }
     memset(ti + i, 0, sizeof(struct train_info));
-    cJSON_Delete(response);
     return 0;
-fail:
-    cJSON_Delete(response);
-    return 1;
 }
 
 static int
 start_login()
 {
     char url[64];
-    char post_data[64];
+    char post_data[128];
 
     snprintf(url, sizeof(url), "%s", "https://kyfw.12306.cn/passport/web/login");
     snprintf(post_data, sizeof(post_data), "username=%s&password=%s&appid=otn", config._username, config._password);
@@ -251,8 +241,8 @@ start_login()
     }
     cJSON *ret_json = cJSON_Parse(chunk.memory);
     if(cJSON_IsNull(ret_json)) {
-	    fprintf(stderr, "error while parse json data.\n");
-	    return -1;
+	fprintf(stderr, "error while parse json data.\n");
+	return -1;
     }
     cJSON *ret_code = cJSON_GetObjectItem(ret_json, "result_code");
     if(cJSON_IsNumber(ret_code) && ret_code->valueint == 0) {
@@ -538,15 +528,18 @@ int get_passenger_dtos(const char *repeat_token)
 void print_train_info(struct train_info *info)
 {
     struct train_info *p = info;
-    printf("%-8s%-14s%-12s%-12s%-12s%-10s%-10s%-10s%-10s%-10s%-10s%-10s%-10s%-10s%-10s%-10s%-10s\n", "车次", "出发站", "到达站", "出发时间", "到达时间", "历时", "特等座", "一等座", "二等座", "高级软卧", "软卧", "动卧", "硬卧", "软座", "硬座", "无座", "其他");
+    printf("+------------------------------------------------------------------------------------------------------------------------------------------------------------+\n");
+    printf("|%-10s|%-12s|%-12s|%-14s|%-14s|%-10s|%-12s|%-12s|%-12s|%-14s|%-9s|%-9s|%-9s|%-9s|%-9s|%-9s|%-9s|\n", "车次", "出发站", "到达站", "出发时间", "到达时间", "历时", "特等座", "一等座", "二等座", "高级软卧", "软卧", "动卧", "硬卧", "软座", "硬座", "无座", "其他");
     //wprintw(scr.status, "车次\t出发站\t到达站\t出发时间\t到达时间\t历时\t特等座\t一等座\t二等座\t高级软卧\t软卧\t动卧\t硬卧\t软座\t硬座\t无座\t其他\n");
     while(p->train_no) {
-	printf("%-8s%-12s%-12s%-12s%-12s%-10s%-10s%-10s%-10s%-10s%-10s%-10s%-10s%-10s%-10s%-10s%-10s\n", p->station_train_code, p->from_station_name, 
+	printf("|--------|---------|---------|----------|----------|--------|---------|---------|---------|----------|-------|-------|-------|-------|-------|-------|-------|\n");
+	printf("|%-8s|%-*s|%-*s|%-10s|%-10s|%-8s|%-*s|%-*s|%-*s|%-*s|%-*s|%-*s|%-*s|%-*s|%-*s|%-*s|%-*s|\n", p->station_train_code, 9 + strlen(p->from_station_name) / 3, p->from_station_name, 
 	//wprintw(scr.status, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", p->station_train_code, p->from_station_telecode, 
-		p->to_station_name, p->start_time, p->arrive_time, p->spend_time, p->swz_num, p->zy_num, p->ze_num, p->gr_num, p->rw_num,
-		p->yb_num, p->yw_num, p->rz_num, p->yz_num, p->wz_num, p->qt_num);
+		9 + strlen(p->to_station_name) / 3, p->to_station_name, p->start_time, p->arrive_time, p->spend_time, 9 + strlen(p->swz_num) / 3, p->swz_num,  9 + strlen(p->zy_num) / 3, p->zy_num, 9 + strlen(p->ze_num) / 3, p->ze_num, 10 + strlen(p->gr_num) / 3, p->gr_num, 7 + strlen(p->rw_num) / 3, p->rw_num,
+		7 + strlen(p->yb_num) / 3, p->yb_num, 7 + strlen(p->yw_num) / 3, p->yw_num, 7 + strlen(p->rz_num) / 3, p->rz_num, 7 + strlen(p->yz_num) / 3, p->yz_num, 7 + strlen(p->wz_num) / 3, p->wz_num, 7 + strlen(p->qt_num) / 3, p->qt_num);
 	p++;
     }
+    printf("+------------------------------------------------------------------------------------------------------------------------------------------------------------+\n");
 }
 
 int perform_request(const char *url, enum request_type type, void *post, struct curl_slist *list)
@@ -616,14 +609,16 @@ int check_current_train_submitable(struct train_info *ptrain)
     }
     int i = 0;
     while(config._t_level[i].time_start[0] != 0) {
-	if(strcmp(ptrain->start_time, config._t_level[i].time_start) < 0 || 
-		strcmp(ptrain->start_time, config._t_level[i].time_end) > 0) {
-	    return 1;
+	if(strcmp(ptrain->start_time, config._t_level[i].time_start) >= 0 && 
+		strcmp(ptrain->start_time, config._t_level[i].time_end) <= 0) {
+	    break;
 	}
 	i++;
     }
-    if(check_current_train_has_prefix_ticket(ptrain) == 0) {
-	return 0;
+    if(config._t_level[0].time_start[0] == 0 || config._t_level[i].time_start[0] != 0) {
+	if(check_current_train_has_prefix_ticket(ptrain) == 0) {
+	    return 0;
+	}
     }
     return 1;
 }
@@ -634,6 +629,8 @@ int process_train(struct train_info *ptrain)
     while(pt_info->train_no) {
 	if(check_current_train_submitable(pt_info) == 0) {
 	    if(submit_order_request(pt_info) == 0) {
+	    //printf("当前车次：%s，乘车日期：%s，出发时间：%s，到达时间：%s，出发站：%s，到达站：%s\n", pt_info->station_train_code,
+		    //pt_info->start_train_date, pt_info->start_time, pt_info->arrive_time, pt_info->from_station_name, pt_info->to_station_name);
 		return 0;
 	    }
 	}
@@ -645,9 +642,9 @@ int process_train(struct train_info *ptrain)
 int query_ticket()
 {
     char url[256];
-    struct train_info t_info[512];
-    char train_buffer[512][512];
+    struct train_info t_info[1024];
     struct timespec t;
+
     t.tv_sec = config._query_ticket_interval / 1000;
     t.tv_nsec = config._query_ticket_interval % 1000 * 1000000;
 
@@ -659,6 +656,7 @@ int query_ticket()
     snprintf(url, sizeof(url), "%sleftTicket/query?leftTicketDTO.train_date=%s&leftTicketDTO.from_station=%s&leftTicketDTO.to_station=%s&purpose_codes=ADULT", BASEURL, config._start_tour_date, config._from_station_telecode, config._to_station_telecode);
 
     while(1) {
+	printf("正在查询 %s 从 %s 到 %s 的余票信息...\n", config._start_tour_date, config._from_station_name, config._to_station_name);
 	if(perform_request(url, GET, NULL, nxt) < 0) {
 	    nanosleep(&t, NULL);
 	    continue;
@@ -667,15 +665,17 @@ int query_ticket()
 	/*if(nxt == NULL) {
 	  nxt = host_list;
 	  }*/
-	parse_train_info(chunk.memory, train_buffer, t_info);
-	//if(t_info) {
-	print_train_info(t_info);
-	if(process_train(t_info) == 0) {
-	    return 0;
+	cJSON *root = cJSON_Parse(chunk.memory);
+	if(root == NULL) {
+	    nanosleep(&t, NULL);
+	    continue;
 	}
-	//free_ptr_array((void **)t_info);
-	//}
-	//free_train_info(t_info);
+	parse_train_info(root, t_info);
+	print_train_info(t_info);
+	/*if(process_train(t_info) == 0) {
+	    return 0;
+	}*/
+	cJSON_Delete(root);
 	nanosleep(&t, NULL);
     }
     return 1;
@@ -1050,6 +1050,10 @@ int get_queue_count(cJSON *json, struct train_info *t_info)
     }
     printf("当前排队人数：%s\n", countT_str->valuestring);
     //wprintw(scr.status, "当前排队人数：%s\n", countT_str->valuestring);
+    int cur_queue_count = (int)strtol(countT_str->valuestring, NULL, 10);
+    if(cur_queue_count > config._max_queue_count) {
+	return 1;
+    }
     cJSON *op2_str = cJSON_GetObjectItem(data, "op_2");
     if(!cJSON_IsString(op2_str)) {
 	cJSON_Delete(root);
@@ -1091,7 +1095,7 @@ int confirm_single_queue(cJSON *json)
     if(perform_request(url, POST, param, nxt) < 0) {
 	return -1;
     }
-    //printf("confirmPassengerSingleForQueue result: %s\n", chunk.memory);
+    printf("confirmPassengerSingleForQueue result: %s\n", chunk.memory);
     cJSON *root = cJSON_Parse(chunk.memory);
     if(cJSON_IsNull(root)) {
 	return 1;
@@ -1172,6 +1176,8 @@ int result_order_for_dc_queue(const char *order_no)
 int submit_order_request(struct train_info *t_info)
 {
     struct train_info *ptrain = t_info;
+    printf("当前车次：%s，乘车日期：%s，出发时间：%s，到达时间：%s，出发站：%s，到达站：%s\n", t_info->station_train_code,
+	    t_info->start_train_date, t_info->start_time, t_info->arrive_time, t_info->from_station_name, t_info->to_station_name);
     printf("开始提交订单请求...\n");
     if(checkUserIsLogin() != 0 && user_login() != 0) {
 	return 1;
@@ -1222,7 +1228,8 @@ int submit_order_request(struct train_info *t_info)
 	    cJSON_Delete(root);
 	    return 1;
 	}
-	printf("系统出票成功，订单已完成\n");
+	query_order_wait_time();
+	printf("系统出票成功，预订已完成，请在30分钟内支付以完成订单\n");
 	result_order_for_dc_queue(tinfo.order_no);
 	cJSON_Delete(root);
 	return 0;

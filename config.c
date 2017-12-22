@@ -5,6 +5,9 @@ int load_config(struct user_config *uc)
     FILE *fd;
     char buffer[512];
     char *p;
+
+    uc->_query_ticket_interval = 3000;
+
     if((fd = fopen("./tickethelper.conf", "r")) == NULL) {
 	perror("fopen: ");
 	return -1;
@@ -15,9 +18,6 @@ int load_config(struct user_config *uc)
 	    *p = '\0';
 	}
 	parse_config(uc, buffer);
-    }
-    if(uc->_query_ticket_interval == 0) {
-	uc->_query_ticket_interval = 3000;
     }
     fclose(fd);
     return 0;
@@ -70,8 +70,8 @@ int set_config_value(struct user_config *uc, const char *key, const char *value)
 	strcpy(uc->_to_station_name, value);
     } else if(strcmp(key, "query_ticket_interval") == 0) {
 	uc->_query_ticket_interval = (int)strtol(value, NULL, 10);
-    } else if(strcmp(key, "aways_queue") == 0) {
-	uc->_aways_queue = (int)strtol(value, NULL, 10);
+    } else if(strcmp(key, "max_queue_count") == 0) {
+	uc->_max_queue_count = (int)strtol(value, NULL, 10);
     } else if(strcmp(key, "prefer_train_type") == 0) {
 	strcpy(uc->_prefer_train_type, value);
     } else if(strcmp(key, "prefer_train_no") == 0) {
@@ -123,10 +123,10 @@ int parse_config(struct user_config *uc, const char *buffer)
 
 void print_config(struct user_config *uc)
 {
-    printf("username: %s.\npassword: %s.\nstart_tour_date: %s.\nfrom_station_name: %s.\nto_station_name: %s.\nquery_ticket_interval: %d.\naways_queue: %d.\nprefer_train_type: %s.\nrefer_seat_type: %s.\nprefer_ticket_time: %s.\nuse_cdn_server_file: %s.\npassenger_name: %s.\nmail_username: %s.\nmail_password: %s.\nmail_server: %s.\n", uc->_username, uc->_password, uc->_start_tour_date,
+    printf("username: %s.\npassword: %s.\nstart_tour_date: %s.\nfrom_station_name: %s.\nto_station_name: %s.\nquery_ticket_interval: %d.\nmax_queue_count: %d.\nprefer_train_type: %s.\nprefer_train_no: %s.\nprefer_seat_type: %s.\nuse_cdn_server_file: %s.\npassenger_name: %s.\nmail_username: %s.\nmail_password: %s.\nmail_server: %s.\n", uc->_username, uc->_password, uc->_start_tour_date,
 	    uc->_from_station_name, uc->_to_station_name, uc->_query_ticket_interval, 
-	    uc->_aways_queue, uc->_prefer_train_type, uc->_prefer_seat_type, 
-	    "undefind", uc->_use_cdn_server_file, uc->_passenger_name,
+	    uc->_max_queue_count, uc->_prefer_train_type, uc->_prefer_train_no, uc->_prefer_seat_type, 
+	    uc->_use_cdn_server_file, uc->_passenger_name,
 	    uc->_mail_username, uc->_mail_password, uc->_mail_server);
     int i = 0;
     while(uc->_t_level[i].time_start[0]) {

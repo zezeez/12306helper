@@ -19,7 +19,7 @@ struct user_config {
     char _from_station_telecode[8];
     char _to_station_telecode[8];
     int _query_ticket_interval;
-    int _aways_queue;
+    int _max_queue_count;
     struct time_level _t_level[16];
     char _prefer_train_type[32];
     char _prefer_train_no[512];

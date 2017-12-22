@@ -109,7 +109,20 @@ struct screen_param {
     int cols;
 };
 
-int parse_train_info(const char *, char (*)[512], struct train_info *);
+static CURL *curl;
+static CURLcode res;
+static struct curl_slist *host_list = NULL;
+static struct response_data chunk;
+static struct common_list *all_stations;
+static struct common_list *cached_stations;
+static struct curl_slist *nxt;
+static struct passenger_info pinfo[16];
+static struct passenger_info cur_passenger;
+static struct ticket_info tinfo;
+static struct screen_param scr;
+static struct user_config config;
+
+int parse_train_info(cJSON *, struct train_info *);
 int perform_request(const char *, enum request_type, void *, struct curl_slist *);
 size_t write_memory_callback(void *, size_t, size_t, void *);
 void print_train_info(struct train_info *);
@@ -132,4 +145,5 @@ int init_user_screen();
 int fill_user_config_telecode();
 extern void *show_varification_code_main(void *);
 static void sig_handler(int);
+extern int setup_mail(struct user_config *);
 #endif
