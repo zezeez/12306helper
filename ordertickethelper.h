@@ -11,6 +11,7 @@
 #include <signal.h>
 #include <curl/curl.h>
 #include <ncurses.h>
+#include <getopt.h>
 #include "cJSON.h"
 #include "utils.h"
 #include "global.h"
@@ -20,6 +21,7 @@
 #define USE_COOKIE 1
 #define TARGETDOMAIN "https://kyfw.12306.cn"
 #define BASEURL "https://kyfw.12306.cn/otn/"
+#define APPVERSION "0.0.1.0"
 
 struct passenger_info {
     char code[4];
@@ -109,6 +111,10 @@ struct screen_param {
     int cols;
 };
 
+struct command_line_option {
+    int verbose;
+};
+
 static CURL *curl;
 static CURLcode res;
 static struct curl_slist *host_list = NULL;
@@ -121,6 +127,13 @@ static struct passenger_info cur_passenger;
 static struct ticket_info tinfo;
 static struct screen_param scr;
 static struct user_config config;
+static struct command_line_option cmd_opt;
+
+static struct option long_options[] = {
+    {"verbose", no_argument, NULL, 'v'},
+    {"version", no_argument, NULL, 'V'},
+    {0, 0, 0, 0}
+};
 
 int parse_train_info(cJSON *, struct train_info *);
 int perform_request(const char *, enum request_type, void *, struct curl_slist *);
@@ -146,4 +159,5 @@ int fill_user_config_telecode();
 extern void *show_varification_code_main(void *);
 static void sig_handler(int);
 extern int setup_mail(struct user_config *, struct train_info *);
+void print_app_version();
 #endif

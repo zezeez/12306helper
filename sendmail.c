@@ -28,7 +28,7 @@ static char base64_table[64] =
   
 int base64_encode(unsigned char *buf, int nLen, char *pOutBuf, int nBufSize);  
   
-void sendemail(struct user_config *, char *body);  
+int sendemail(struct user_config *, char *body);  
 int open_socket(struct sockaddr *addr);  
   
 int setup_mail(struct user_config *uc, struct train_info *t_info)  
@@ -54,10 +54,12 @@ int setup_mail(struct user_config *uc, struct train_info *t_info)
          */ 
     char bodyHead[1024];
     snprintf(bodyHead, sizeof(bodyHead), "From: \"%s\"<%s>\r\nTo \"%s\"<%s>\r\nMIME-Version:1.0\r\nContent-Type:text/html;boundary=\"---=_NextPart_000_0050_01C\"\r\nSubject:Tickethelper notification\r\n\r\n"
-	    "&nbsp;&nbsp;You recieve this email because you use tickethelper to order ticket at <a href=\"https://kyfw.12306.cn\">12306</a>. Congratulations a ticket is ready for you from %s to %s at %s %s, please pay your order at <a href=\"https://kyfw.12306.cn\">12306</a> as soon as possible or your order will be canceled.<br />&nbsp;&nbsp;Thanks for using tickethelper.\r\n\r\n", 
+	    "&nbsp;&nbsp;You recieve this email because you use tickethelper to order ticket at <a href=\"https://kyfw.12306.cn\">12306</a>. Congratulations a ticket is ready for you from %s to %s at %s %s, please pay your order at <a href=\"https://kyfw.12306.cn\">12306</a> as soon as possible or your order will be canceled after 30 minutes.<br />&nbsp;&nbsp;Thanks for using tickethelper.\r\n\r\n", 
 	    uc->_mail_username, uc->_mail_username, uc->_mail_username, uc->_mail_username, t_info->from_station_name, t_info->to_station_name, t_info->start_train_date, t_info->start_time);
 
-    sendemail(uc, bodyHead);
+    if(sendemail(uc, bodyHead) < 0) {
+	return -1;
+    }
 
     return 0;  
 }  
@@ -117,10 +119,10 @@ int base64_encode(unsigned char* pBase64, int nLen, char* pOutBuf, int nBufSize)
 /**  
  * @func  sendemail 
  * @brief send email in blocking-mode 
- * @param smtpServer  
+ * @param user config  
  * @param body  
  */  
-void sendemail(struct user_config *uc, char *body)  
+int sendemail(struct user_config *uc, char *body)  
 {  
     int sockfd = 0;  
     struct sockaddr_in their_addr;
@@ -133,7 +135,7 @@ void sendemail(struct user_config *uc, char *body)
     if((host = gethostbyname(uc->_mail_server))==NULL)/*取得主机IP地址*/  
     {  
         fprintf(stderr,"Gethostname error, %s\n", strerror(errno));  
-        exit(1);  
+        return -1;
     }  
   
     memset(&their_addr, 0, sizeof(their_addr));  
@@ -156,18 +158,31 @@ void sendemail(struct user_config *uc, char *body)
     //memset(buf, 0, 1500);  
     sprintf(buf, "EHLO newer-PC\r\n");  
   
-    send(sockfd, buf, strlen(buf), 0);  
+    if(send(sockfd, buf, strlen(buf), 0) < 0) {
+	perror("send: ");
+	return -1;
+    }
     //memset(rbuf, 0, 1500);  
-    recv(sockfd, rbuf, sizeof(rbuf), 0);  
-    //printf("%s\n", rbuf);  
+    if(recv(sockfd, rbuf, sizeof(rbuf), 0) < 0) {
+	perror("recv: ");
+	return -1;
+    }
+    printf("%s\n", rbuf);  
   
     /*AUTH LOGIN  */  
     //memset(buf, 0, 1500);  
     sprintf(buf, "AUTH LOGIN\r\n");  
-    send(sockfd, buf, strlen(buf), 0);  
+    if(send(sockfd, buf, strlen(buf), 0) < 0) {
+	perror("send: ");
+	return -1;
+    }
   
     //memset(rbuf, 0, 1500);  
-    recv(sockfd, rbuf, sizeof(rbuf), 0); 
+    if(recv(sockfd, rbuf, sizeof(rbuf), 0) < 0) {
+	perror("recv: ");
+	return -1;
+    }
+    printf("%s\n", rbuf);  
   
     /* USER */  
     //memset(buf, 0, 1500);  
@@ -178,9 +193,16 @@ void sendemail(struct user_config *uc, char *body)
     base64_encode((unsigned char *)uc->_mail_username, strlen(uc->_mail_username), login, 128);                   /* base64 */  
   
     sprintf(buf, "%s\r\n", login);  
-    send(sockfd, buf, strlen(buf), 0);  
+    if(send(sockfd, buf, strlen(buf), 0) < 0) {
+	perror("send: ");
+	return -1;
+    }
     //memset(rbuf, 0, 1500);  
-    recv(sockfd, rbuf, sizeof(rbuf), 0);  
+    if(recv(sockfd, rbuf, sizeof(rbuf), 0) < 0) {
+	perror("recv: ");
+	return -1;
+    }
+    printf("%s\n", rbuf);  
   
     /* PASSWORD */  
     //memset(buf, 0, 1500);  
@@ -189,47 +211,88 @@ void sendemail(struct user_config *uc, char *body)
   
     base64_encode((unsigned char *)uc->_mail_password, strlen(uc->_mail_password), pass, 128);  
     sprintf(buf, "%s\r\n", pass);  
-    send(sockfd, buf, strlen(buf), 0);  
+    if(send(sockfd, buf, strlen(buf), 0) < 0) {
+	perror("send: ");
+	return -1;
+    }
   
     //printf("%s, %d\n", buf, __LINE__);  
   
     //memset(rbuf, 0, 1500);  
-    recv(sockfd, rbuf, sizeof(rbuf), 0);  
+    if(recv(sockfd, rbuf, sizeof(rbuf), 0) < 0) {
+	perror("recv: ");
+	return -1;
+    }
+    printf("%s\n", rbuf);  
     //printf("%s, %d\n", rbuf, __LINE__);  
   
     /* MAIL FROM */  
     snprintf(buf, sizeof(buf), "MAIL FROM: <%s>\r\n", uc->_mail_username);  
-    send(sockfd, buf, strlen(buf), 0);  
+    if(send(sockfd, buf, strlen(buf), 0) < 0) {
+	perror("send: ");
+	return -1;
+    }
   
     //memset(rbuf, 0, 1500);  
-    recv(sockfd, rbuf, sizeof(rbuf), 0);  
+    if(recv(sockfd, rbuf, sizeof(rbuf), 0) < 0) {
+	perror("recv: ");
+	return -1;
+    }
+    printf("%s\n", rbuf);  
   
     /* rcpt to 第一个收件人 */  
     snprintf(buf, sizeof(buf), "RCPT TO:<%s>\r\n", uc->_mail_username);  
-    send(sockfd, buf, strlen(buf), 0);  
+    if(send(sockfd, buf, strlen(buf), 0) < 0) {
+	perror("send: ");
+	return -1;
+    }
   
     //memset(rbuf, 0, 1500);  
-    recv(sockfd, rbuf, sizeof(rbuf), 0);  
+    if(recv(sockfd, rbuf, sizeof(rbuf), 0) < 0) {
+	perror("recv: ");
+	return -1;
+    }
+    printf("%s\n", rbuf);  
   
     /* DATA email connext ready  */  
     sprintf(buf, "DATA\r\n");  
-    send(sockfd, buf, strlen(buf), 0);  
+    if(send(sockfd, buf, strlen(buf), 0) < 0) {
+	perror("send: ");
+	return -1;
+    }
   
     //memset(rbuf, 0, 1500);  
-    recv(sockfd, rbuf, sizeof(rbuf), 0);  
+    if(recv(sockfd, rbuf, sizeof(rbuf), 0) < 0) {
+	perror("recv: ");
+	return -1;
+    }
+    printf("%s\n", rbuf);  
   
     /* send email connext \r\n.\r\n end*/  
     sprintf(buf, "%s\r\n.\r\n", body);  
-    send(sockfd, buf, strlen(buf), 0);  
+    if(send(sockfd, buf, strlen(buf), 0) < 0) {
+	perror("send: ");
+	return -1;
+    }
     //memset(rbuf, 0, 1500);  
-    recv(sockfd, rbuf, sizeof(rbuf), 0);  
+    if(recv(sockfd, rbuf, sizeof(rbuf), 0) < 0) {
+	perror("recv: ");
+	return -1;
+    }
+    printf("%s\n", rbuf);  
   
     /* QUIT */  
     sprintf(buf, "QUIT\r\n");  
-    send(sockfd, buf, strlen(buf), 0);  
+    if(send(sockfd, buf, strlen(buf), 0) < 0) {
+	perror("send: ");
+	return -1;
+    }
     //memset(rbuf, 0, 1500);  
   
-    recv(sockfd, rbuf, sizeof(rbuf), 0);  
+    if(recv(sockfd, rbuf, sizeof(rbuf), 0) < 0) {
+	return -1;
+    }
+    printf("%s\n", rbuf);  
 }  
   
 int open_socket(struct sockaddr *addr)  
@@ -251,5 +314,4 @@ int open_socket(struct sockaddr *addr)
     }  
   
     return sockfd;  
-  
 }  

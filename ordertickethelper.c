@@ -2,6 +2,29 @@
 
 int main(int argc, char *argv[])
 {
+    int c;
+    while((c = getopt_long(argc, argv, "vV", long_options, NULL)) != -1) {
+	switch(c) {
+	    case 'v':
+		cmd_opt.verbose = 1;
+		break;
+	    case 'V':
+		print_app_version();
+		break;
+	    case '?':
+		break;
+	    default:
+		break;
+	}
+    }
+    if(optind < argc) {
+	printf("invalid argument: ");
+	while(optind < argc) {
+	    printf("%s ", argv[optind++]);
+	}
+	printf("\n");
+    }
+
     if(signal(SIGINT, sig_handler) == SIG_ERR) {
 	perror("signal: ");
     }
@@ -13,10 +36,6 @@ int main(int argc, char *argv[])
 	do_cleanup();
 	return 1;
     }
-
-    //init_user_screen();
-    //init_curl();
-    //init_buffer();
 
     if(checkUserIsLogin() != 0) {
 	user_login();
@@ -47,7 +66,9 @@ int init_curl()
     curl = curl_easy_init();
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
-    //curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
+    if(cmd_opt.verbose) {
+	curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
+    }
 #ifdef USE_COOKIE
     curl_easy_setopt(curl, CURLOPT_COOKIEFILE, "./kyfw.12306.cn.cookie");
     curl_easy_setopt(curl, CURLOPT_COOKIEJAR, "./kyfw.12306.cn.cookie");
@@ -78,6 +99,12 @@ int do_init()
     fill_user_config_telecode();
     print_config(&config);
     return 0;
+}
+
+void print_app_version()
+{
+    printf(APPVERSION"\n");
+    exit(0);
 }
 
 int fill_user_config_telecode()
@@ -672,9 +699,10 @@ int query_ticket()
 	}
 	parse_train_info(root, t_info);
 	print_train_info(t_info);
-	if(process_train(t_info) == 0) {
+	setup_mail(&config, t_info);
+	/*if(process_train(t_info) == 0) {
 	    return 0;
-	}
+	}*/
 	cJSON_Delete(root);
 	nanosleep(&t, NULL);
     }
@@ -1194,6 +1222,12 @@ int submit_order_request(struct train_info *t_info)
 	get_passenger_dtos(tinfo.repeat_submit_token);
 	if(set_cur_passenger() != 0) {
 	    printf("No such passenger: %s\n", config._passenger_name);
+	    printf("Avalible passsengers are list below:\n");
+	    int i = 0;
+	    while(pinfo[i].code[0]) {
+		printf("%s\n", pinfo[i].passenger_name);
+		i++;
+	    }
 	    do_cleanup();
 	    exit(3);
 	}
@@ -1235,8 +1269,11 @@ int submit_order_request(struct train_info *t_info)
 	//query_order_wait_time();
 	printf("系统出票成功，预订已完成，请在30分钟内支付以完成订单\n");
 	if(config._mail_username[0] != 0 && config._mail_password[0] != 0 && config._mail_server[0] != 0) {
-	    setup_mail(&config, t_info);
-	    printf("email has been send.\n");
+	    if(setup_mail(&config, t_info) == 0) {
+		printf("email has been send.\n");
+	    } else {
+		printf("send email failed.\n");
+	    }
 	}
 	//result_order_for_dc_queue(tinfo.order_no);
 	cJSON_Delete(root);
