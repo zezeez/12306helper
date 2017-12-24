@@ -41,9 +41,6 @@ button_press_event_cb (GtkWidget      *widget,
     struct thread_res *tres = (struct thread_res *) data;
     if (event->button == GDK_BUTTON_PRIMARY)
     {
-	g_print("button_primary\n");
-	g_print("x: %d, y: %d\n", (gint)event->x, (gint)event->y);
-	//gtk_widget_queue_draw_area(image_widget, event->x, event->y, 32, 32);
 	int pos = get_current_position((gint)event->x, (gint)event->y);
 	if(pos != -1) {
 	    if(!tres->is_selected[pos]) {
@@ -67,8 +64,6 @@ button_press_event_cb (GtkWidget      *widget,
     }
     else if (event->button == GDK_BUTTON_SECONDARY)
     {
-	g_print("button_secondary\n");
-	g_print("x: %d, y: %d\n", (gint)event->x, (gint)event->y);
 	clear_selection(tres);
     }
 
@@ -155,17 +150,12 @@ do_varification(void *user_data)
 	if(tres->is_selected[i]) {
 	    snprintf(p_str_cor, sizeof(str_cor), "%d,%d,", tres->cor[i].x, tres->cor[i].y);
 	    p_str_cor += strlen(p_str_cor);
-	    //tres->cor[i].x = 0;
-	    //tres->cor[i].y = 0;
-	    //tres->is_selected[i] = FALSE;
 	}
     }
     if(i) {
 	str_cor[strlen(str_cor) - 1] = '\0';
     }
     char *urlencode = curl_easy_escape(tres->tdata->curl, str_cor, strlen(str_cor));
-    printf("str_cor: %s\n", str_cor);
-    printf("urlencode: %s\n", urlencode);
     char post_data[64];
 
     if(tres->tdata->auth_type == 0) {
@@ -175,16 +165,19 @@ do_varification(void *user_data)
     }
 
     if(perform_request(url, POST, post_data, tres->tdata->nxt) < 0) {
+	curl_free(urlencode);
 	return -1;
     }
     cJSON *ret_json = cJSON_Parse(tres->tdata->r_data->memory);
     if(!ret_json) {
 	fprintf(stderr, "cJSON_Parse: %s\n", cJSON_GetErrorPtr());
+	curl_free(urlencode);
 	return -1;
     }
     cJSON *ret_code = cJSON_GetObjectItem(ret_json, "result_code");
     if(!cJSON_IsString(ret_code)) {
 	fprintf(stderr, "error parse json data\n");
+	curl_free(urlencode);
 	return -1;
     }
     if(strcmp(ret_code->valuestring, "4") == 0) {
@@ -192,9 +185,13 @@ do_varification(void *user_data)
 	curl_free(urlencode);
 	return 0;
     } else {
-	printf("%s\n", tres->tdata->r_data->memory);
+	cJSON *errMsg = cJSON_GetObjectItem(ret_json, "result_message");
+	if(cJSON_IsString(errMsg)) {
+	    printf("error: %s\n", errMsg->valuestring);
+	}
 	refresh(tres->image_widget, user_data);
     }
+    curl_free(urlencode);
     return 1;
 }
 
@@ -204,15 +201,8 @@ submit(GtkWidget *widget,
 {
     struct thread_res *tres = (struct thread_res *) user_data;
     if(do_varification(user_data) == 0) {
-	//gtk_main_quit();
-	//g_object_unref(tres->window);
-	//gtk_widget_destroy(tres->window);
-	//g_object_unref(g_app);
 	success = TRUE;
 	g_signal_emit_by_name(tres->window, "destroy");
-	//g_application_quit(G_APPLICATION(tres->g_app));
-	//gtk_widget_destroy(tres->window);
-	//pthread_exit((void *)ret);
     }
 }
 

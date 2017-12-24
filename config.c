@@ -7,6 +7,7 @@ int load_config(struct user_config *uc)
     char *p;
 
     uc->_query_ticket_interval = 3000;
+    uc->_block_time = 30;
 
     if((fd = fopen("./tickethelper.conf", "r")) == NULL) {
 	perror("fopen: ");
@@ -72,6 +73,8 @@ int set_config_value(struct user_config *uc, const char *key, const char *value)
 	uc->_query_ticket_interval = (int)strtol(value, NULL, 10);
     } else if(strcmp(key, "max_queue_count") == 0) {
 	uc->_max_queue_count = (int)strtol(value, NULL, 10);
+    } else if(strcmp(key, "block_time") == 0) {
+	uc->_block_time = (int)strtol(value, NULL, 10);
     } else if(strcmp(key, "prefer_train_type") == 0) {
 	strcpy(uc->_prefer_train_type, value);
     } else if(strcmp(key, "prefer_train_no") == 0) {

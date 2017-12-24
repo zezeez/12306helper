@@ -103,14 +103,6 @@ struct ticket_info {
     char order_no[32];
 };
 
-struct screen_param {
-    WINDOW *status;
-    WINDOW *output;
-    WINDOW *info;
-    int rows;
-    int cols;
-};
-
 struct command_line_option {
     int verbose;
 };
@@ -118,14 +110,14 @@ struct command_line_option {
 static CURL *curl;
 static CURLcode res;
 static struct curl_slist *host_list = NULL;
+static struct curl_slist *nxt;
 static struct response_data chunk;
 static struct common_list *all_stations;
 static struct common_list *cached_stations;
-static struct curl_slist *nxt;
+static struct common_list *black_list;
 static struct passenger_info pinfo[16];
 static struct passenger_info cur_passenger;
 static struct ticket_info tinfo;
-static struct screen_param scr;
 static struct user_config config;
 static struct command_line_option cmd_opt;
 
@@ -158,6 +150,7 @@ int init_user_screen();
 int fill_user_config_telecode();
 extern void *show_varification_code_main(void *);
 static void sig_handler(int);
-extern int setup_mail(struct user_config *, struct train_info *);
+extern int sendmail(struct user_config *, const char *, const char *,
+	const char *, const char *);
 void print_app_version();
 #endif

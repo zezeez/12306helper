@@ -72,7 +72,7 @@ void free_ptr_array(void **ptr)
 int parse_peer_train(char *buff, void *ti)
 {
     char *pb = buff;
-    void **ptr = ti;
+    void **ptr = (void **)ti;
     *ptr = pb;
     ptr++;
     while(*pb) {
@@ -150,21 +150,13 @@ void *insert_station_name(void *s)
 int find_station_name(void *s, void *d)
 {
     struct station_name *s_name = (struct station_name *) s;
-    //struct station_name *d_name = (struct station_name *) d;
-    if(strcmp(s_name->code, (const char *)d) == 0) {
-	return 0;
-    }
-    return 1;
+    return strcmp(s_name->code, (const char *)d);
 }
 
 int find_station_code(void *s, void *d)
 {
     struct station_name *s_name = (struct station_name *) s;
-    //struct station_name *d_name = (struct station_name *) d;
-    if(strcmp(s_name->name, (const char *)d) == 0) {
-	return 0;
-    }
-    return 1;
+    return strcmp(s_name->name, (const char *)d);
 }
 
 int remove_station_name(void *d)
@@ -177,6 +169,48 @@ int remove_station_name(void *d)
     free(p->simple_py2);
     free(p->num);
     return 0;
+}
+
+void *insert_black_list(void *s)
+{
+    struct train_black_list *pt = (struct train_black_list *) malloc(sizeof(struct train_black_list));
+    if(pt == NULL) {
+	perror("malloc: ");
+	return NULL;
+    }
+    char *pn = (char *) malloc(sizeof(char) * 32);
+    if(pn == NULL) {
+	perror("malloc: ");
+	return NULL;
+    }
+    struct train_black_list *ps = (struct train_black_list *) s;
+    strncpy(pn, ps->train_no, 32);
+    pt->train_no = pn;
+    pt->block_time_end = ps->block_time_end;
+    return (void *) pt;
+}
+
+int remove_black_list(void *s)
+{
+    struct train_black_list *pt = (struct train_black_list *) s;
+    free(pt->train_no);
+    free(s);
+    return 0;
+}
+
+int find_black_list(void *s, void *d)
+{
+    struct train_black_list *pt = (struct train_black_list *) s;
+    return strcmp(pt->train_no, (const char *) d);
+}
+
+int find_and_remove_black_list(void *s, void *d)
+{
+    if(find_black_list(s, d) == 0) {
+	remove_black_list(s);
+	return 0;
+    }
+    return 1;
 }
 
 /*const char * find_station_name_by_code(struct station_name *name, const char *code, struct common_list *cache)
@@ -259,4 +293,33 @@ void *read_file_all(const char *file)
 
     fclose(fd);
     return buffer;
+}
+
+int load_cdn_server(struct curl_slist **cs, const char *path)
+{
+    FILE *fd;
+    char buffer[64], fmt_buff[128];
+    char *p;
+    if((fd = fopen(path, "r")) == NULL) {
+	fprintf(stderr, "open %s: %s\n", path, strerror(errno));
+	return -1;
+    }
+    while(fgets(buffer, sizeof(buffer), fd)) {
+	p = buffer;
+	while(*p) {
+	    if(*p == ' ' || *p == '\t') {
+		p++;
+	    } else {
+		break;
+	    }
+	}
+	if(*p == '#') {
+	    continue;
+	}
+	p[strlen(p) - 1] = '\0';
+	snprintf(fmt_buff, sizeof(fmt_buff), "kyfw.12306.cn:443:%s:443", p);
+	printf("%s\n", fmt_buff);
+	*cs = curl_slist_append(*cs, fmt_buff);
+    }
+    return 0;
 }
