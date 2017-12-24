@@ -678,7 +678,8 @@ int process_train(struct train_info *ptrain)
 
 int query_ticket()
 {
-    char url[256];
+    char log_url[256];
+    char query_url[256];
     struct train_info t_info[1024];
     struct timespec t;
 
@@ -687,14 +688,14 @@ int query_ticket()
 
     //curl_easy_setopt(curl, CURLOPT_NOBODY, 0L);
 
-    snprintf(url, sizeof(url), "%sleftTicket/log?leftTicketDTO.train_date=%s&leftTicketDTO.from_station=%s&leftTicketDTO.to_station=%s&purpose_codes=ADULT", BASEURL, config._start_tour_date, config._from_station_telecode, config._to_station_telecode);
-    perform_request(url, GET, NULL, nxt);
+    snprintf(log_url, sizeof(log_url), "%sleftTicket/log?leftTicketDTO.train_date=%s&leftTicketDTO.from_station=%s&leftTicketDTO.to_station=%s&purpose_codes=ADULT", BASEURL, config._start_tour_date, config._from_station_telecode, config._to_station_telecode);
 
-    snprintf(url, sizeof(url), "%sleftTicket/query?leftTicketDTO.train_date=%s&leftTicketDTO.from_station=%s&leftTicketDTO.to_station=%s&purpose_codes=ADULT", BASEURL, config._start_tour_date, config._from_station_telecode, config._to_station_telecode);
+    snprintf(query_url, sizeof(query_url), "%sleftTicket/query?leftTicketDTO.train_date=%s&leftTicketDTO.from_station=%s&leftTicketDTO.to_station=%s&purpose_codes=ADULT", BASEURL, config._start_tour_date, config._from_station_telecode, config._to_station_telecode);
 
     while(1) {
 	printf("正在查询 %s 从 %s 到 %s 的余票信息...\n", config._start_tour_date, config._from_station_name, config._to_station_name);
-	if(perform_request(url, GET, NULL, nxt) < 0) {
+	perform_request(log_url, GET, NULL, nxt);
+	if(perform_request(query_url, GET, NULL, nxt) < 0) {
 	    nanosleep(&t, NULL);
 	    nxt = nxt->next;
 	    if(nxt == NULL) {
@@ -1088,6 +1089,11 @@ int get_queue_count(cJSON *json, struct train_info *t_info)
 	return 1;
     }
     printf("当前余票：%s\n", ticket_str->valuestring);
+    if(strcmp(ticket_str->valuestring, "0") == 0) {
+	printf("该数据为缓存，将%s加入黑名单%d秒\n", 
+		t_info->station_train_code, config._block_time);
+	add_train_to_black_list(t_info);
+    }
     cJSON *countT_str = cJSON_GetObjectItem(data, "countT");
     if(!cJSON_IsString(countT_str)) {
 	cJSON_Delete(root);
