@@ -26,7 +26,7 @@ struct user_config {
     char _prefer_train_no[512];
     char _prefer_seat_type[16];
     //char _prefer_ticket_time[32];
-    char _use_cdn_server_file[32];
+    char _use_cdn_server_file[64];
     char _passenger_name[16];
     char _mail_username[64];
     char _mail_password[64];

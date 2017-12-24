@@ -312,22 +312,19 @@ int is_need_to_remove_train_from_black_list()
     time(&tvnow);
 
     while(p) {
-	if( tvnow >= ((struct train_black_list *) p->data)->block_time_end) {
-	    return remove_train_from_black_list(p->data);
+	if(tvnow >= ((struct train_black_list *) p->data)->block_time_end) {
+	    printf("remove %s from black list\n", ((struct train_black_list *) p->data)->train_no);
+	    remove_train_from_black_list(((struct train_black_list *)p->data)->train_no);
 	}
 	p = p->next;
     }
-    return 1;
+    return 0;
 }
 
 int current_train_is_at_black_list(struct train_info *t_info)
 {
-    struct common_list *p = black_list->next;
-    while(p) {
-	if(find_node(black_list, t_info->train_no, find_black_list) == 0) {
-	    return 0;
-	}
-	p = p->next;
+    if(find_node(black_list, t_info->train_no, find_black_list) == NULL) {
+	return 0;
     }
     return 1;
 }
@@ -636,9 +633,9 @@ int check_current_train_submitable(struct train_info *ptrain)
 	    return 1;
 	}
 	if(check_current_train_has_prefix_ticket(ptrain) == 0 &&
-		current_train_is_at_black_list(ptrain) != 0) {
+		!current_train_is_at_black_list(ptrain)) {
 	    return 0;
-	}
+	 }
 	return 1;
     }
     if(config._prefer_train_type[0] != 0) {
@@ -656,7 +653,7 @@ int check_current_train_submitable(struct train_info *ptrain)
     }
     if(config._t_level[0].time_start[0] == 0 || config._t_level[i].time_start[0] != 0) {
 	if(check_current_train_has_prefix_ticket(ptrain) == 0 && 
-		current_train_is_at_black_list(ptrain) != 0) {
+		!current_train_is_at_black_list(ptrain)) {
 	    return 0;
 	}
     }
@@ -705,9 +702,11 @@ int query_ticket()
 	    }
 	    continue;
 	}
-	nxt = nxt->next;
-	if(nxt == NULL) {
-	    nxt = host_list;
+	if(config._use_cdn_server_file[0]) {
+	    nxt = nxt->next;
+	    if(nxt == NULL) {
+		nxt = host_list;
+	    }
 	}
 	cJSON *root = cJSON_Parse(chunk.memory);
 	if(root == NULL) {
@@ -720,6 +719,7 @@ int query_ticket()
 	//sendmail(&config, t_info->from_station_name, t_info->to_station_name,
 	//	    t_info->start_train_date, t_info->start_time);
 	if(process_train(t_info) == 0) {
+	    cJSON_Delete(root);
 	    return 0;
 	}
 	cJSON_Delete(root);
@@ -1104,14 +1104,16 @@ int get_queue_count(cJSON *json, struct train_info *t_info)
 	return 1;
     }
     if(strcmp(op2_str->valuestring, "true") == 0) {
-	printf("当前排队人数超过余票张数，订单提交失败\n");
+	printf("当前排队人数超过余票张数，该数据为缓存，将%s加入黑名单%d秒\n", 
+		t_info->station_train_code, config._block_time);
+	add_train_to_black_list(t_info);
 	return 2;
     }
 
     return 0;
 }
 
-int confirm_single_queue(cJSON *json)
+int confirm_single_queue(cJSON *json, struct train_info *t_info)
 {
     char url[128];
     char param[512];
@@ -1157,6 +1159,8 @@ int confirm_single_queue(cJSON *json)
 	if(cJSON_IsString(err_msg)) {
 	    printf("出票失败，原因：%s\n", err_msg->valuestring);
 	}
+	printf("将%s加入黑名单%d秒\n", t_info->station_train_code, config._block_time);
+	add_train_to_black_list(t_info);
 	return 1;
     }
     return 0;
@@ -1263,9 +1267,8 @@ int submit_order_request(struct train_info *t_info)
 	    return 1;
 	}
 	printf("正在确认订单请求...\n");
-	if(confirm_single_queue(root) != 0) {
+	if(confirm_single_queue(root, ptrain) != 0) {
 	    cJSON_Delete(root);
-	    add_train_to_black_list(ptrain);
 	    return 1;
 	}
 	int wait_time;

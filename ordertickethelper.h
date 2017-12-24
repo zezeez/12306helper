@@ -109,7 +109,7 @@ struct command_line_option {
 
 static CURL *curl;
 static CURLcode res;
-static struct curl_slist *host_list = NULL;
+static struct curl_slist *host_list;
 static struct curl_slist *nxt;
 static struct response_data chunk;
 static struct common_list *all_stations;
