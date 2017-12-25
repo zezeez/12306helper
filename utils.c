@@ -162,12 +162,30 @@ int find_station_code(void *s, void *d)
 int remove_station_name(void *d)
 {
     struct station_name *p = (struct station_name *) d;
-    free(p->simple_py);
-    free(p->name);
-    free(p->code);
-    free(p->full_py);
-    free(p->simple_py2);
-    free(p->num);
+    if(p->simple_py) {
+	free(p->simple_py);
+	p->simple_py = NULL;
+    }
+    if(p->name) {
+	free(p->name);
+	p->name = NULL;
+    }
+    if(p->code) {
+	free(p->code);
+	p->code = NULL;
+    }
+    if(p->full_py) {
+	free(p->full_py);
+	p->full_py = NULL;
+    }
+    if(p->simple_py2) {
+	free(p->simple_py2);
+	p->simple_py2 = NULL;
+    }
+    if(p->num) {
+	free(p->num);
+	p->num = NULL;
+    }
     return 0;
 }
 
@@ -181,6 +199,7 @@ void *insert_black_list(void *s)
     char *pn = (char *) malloc(sizeof(char) * 32);
     if(pn == NULL) {
 	perror("malloc: ");
+	free(pt);
 	return NULL;
     }
     struct train_black_list *ps = (struct train_black_list *) s;
@@ -321,5 +340,6 @@ int load_cdn_server(struct curl_slist **cs, const char *path)
 	printf("%s\n", fmt_buff);
 	*cs = curl_slist_append(*cs, fmt_buff);
     }
+    fclose(fd);
     return 0;
 }

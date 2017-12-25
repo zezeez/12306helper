@@ -124,6 +124,9 @@ static struct command_line_option cmd_opt;
 static struct option long_options[] = {
     {"verbose", no_argument, NULL, 'v'},
     {"version", no_argument, NULL, 'V'},
+    {"queit", no_argument, NULL, 'q'},
+    {"query-only", no_argument, NULL, 'Q'},
+    {"config", required_argument, NULL, 'c'},
     {0, 0, 0, 0}
 };
 
