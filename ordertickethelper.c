@@ -208,7 +208,7 @@ int parse_train_info(cJSON *response, struct train_info *ti)
 
     for(i = 0; i < size; i++) {
 	cJSON *item = cJSON_GetArrayItem(result, i);
-	if(cJSON_IsNull(item)) {
+	if(!cJSON_IsString(item)) {
 	    return 1;
 	}
 	parse_peer_train(item->valuestring, ti + i);
@@ -286,7 +286,7 @@ int show_varification_code(int auth_type)
 
 int user_login()
 {
-    perform_request(BASEURL"otn/login/init", GET, NULL, nxt);
+    perform_request(BASEURL"login/init", GET, NULL, nxt);
 
     int ret = show_varification_code(0);
     if(ret == 100) {
@@ -749,7 +749,11 @@ int query_ticket()
 	    continue;
 	}
 	is_need_to_remove_train_from_black_list();
-	parse_train_info(root, t_info);
+	if(parse_train_info(root, t_info) != 0) {
+	    nanosleep(&t, NULL);
+	    cJSON_Delete(root);
+	    continue;
+	}
 	if(!config._queit_mode) {
 	    print_train_info(t_info);
 	}
