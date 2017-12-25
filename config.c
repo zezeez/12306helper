@@ -63,6 +63,26 @@ int set_time_level(struct user_config *uc, const char *value)
     return 0;
 }
 
+int set_train_info(char *config_value, size_t size, const char *value)
+{
+    char **pt = split(value, ',');
+    char **pn = pt;
+    int i = 0;
+    if(pn == NULL) {
+	strncpy(config_value, value, size);
+	*(config_value + size)= '\0';
+    } else {
+	while(*pn) {
+	    strncpy(config_value + i * size, *pn, size);
+	    pn++;
+	    i++;
+	}
+	*(config_value + i * size) = '\0';
+	free_ptr_array((void **)pt);
+    }
+    return 0;
+}
+
 int set_config_value(struct user_config *uc, const char *key, const char *value)
 {
     if(strcmp(key, "username") == 0) {
@@ -82,13 +102,15 @@ int set_config_value(struct user_config *uc, const char *key, const char *value)
     } else if(strcmp(key, "block_time") == 0) {
 	uc->_block_time = (int)strtol(value, NULL, 10);
     } else if(strcmp(key, "prefer_train_type") == 0) {
-	strcpy(uc->_prefer_train_type, value);
+	//strcpy(uc->_prefer_train_type, value);
+	set_train_info(*uc->_prefer_train_type, sizeof(*uc->_prefer_train_type), value);
     } else if(strcmp(key, "prefer_train_no") == 0) {
-	strcpy(uc->_prefer_train_no, value);
+	//strcpy(uc->_prefer_train_no, value);
+	set_train_info(*uc->_prefer_train_no, sizeof(*uc->_prefer_train_no), value);
     } else if(strcmp(key, "prefer_seat_type") == 0) {
-	strcpy(uc->_prefer_seat_type, value);
+	strcpy(uc->_prefer_seat_type_all, value);
+	set_train_info(*uc->_prefer_seat_type, sizeof(*uc->_prefer_seat_type), value);
     } else if(strcmp(key, "prefer_ticket_time") == 0) {
-	//strcpy(uc->_prefer_ticket_time, value);
 	set_time_level(uc, value);
     } else if(strcmp(key, "use_cdn_server_file") == 0) {
 	strcpy(uc->_use_cdn_server_file, value);
@@ -132,12 +154,33 @@ int parse_config(struct user_config *uc, const char *buffer)
 
 void print_config(struct user_config *uc)
 {
-    printf("username: %s.\npassword: %s.\nstart_tour_date: %s.\nfrom_station_name: %s.\nto_station_name: %s.\nquery_ticket_interval: %d.\nmax_queue_count: %d.\nprefer_train_type: %s.\nprefer_train_no: %s.\nprefer_seat_type: %s.\nuse_cdn_server_file: %s.\npassenger_name: %s.\nmail_username: %s.\nmail_password: %s.\nmail_server: %s.\n", uc->_username, uc->_password, uc->_start_tour_date,
+    printf("username: %s.\npassword: %s.\nstart_tour_date: %s.\nfrom_station_name: %s.\nto_station_name: %s.\nquery_ticket_interval: %d.\nmax_queue_count: %d.\nuse_cdn_server_file: %s.\npassenger_name: %s.\nmail_username: %s.\nmail_password: %s.\nmail_server: %s.\n", uc->_username, uc->_password, uc->_start_tour_date,
 	    uc->_from_station_name, uc->_to_station_name, uc->_query_ticket_interval, 
-	    uc->_max_queue_count, uc->_prefer_train_type, uc->_prefer_train_no, uc->_prefer_seat_type, 
+	    uc->_max_queue_count,
 	    uc->_use_cdn_server_file, uc->_passenger_name,
 	    uc->_mail_username, uc->_mail_password, uc->_mail_server);
     int i = 0;
+    printf("prefer_train_type: ");
+    while(uc->_prefer_train_type[i][0]) {
+	printf("%s,", uc->_prefer_train_type[i]);
+	i++;
+    }
+    putchar('\n');
+    i = 0;
+    printf("prefer_train_no: ");
+    while(uc->_prefer_train_no[i][0]) {
+	printf("%s,", uc->_prefer_train_no[i]);
+	i++;
+    }
+    putchar('\n');
+    i = 0;
+    printf("prefer_seat_type: ");
+    while(uc->_prefer_seat_type[i][0]) {
+	printf("%s,", uc->_prefer_seat_type[i]);
+	i++;
+    }
+    putchar('\n');
+    i = 0;
     while(uc->_t_level[i].time_start[0]) {
 	printf("time_start: %s, time_end: %s\n", uc->_t_level[i].time_start, uc->_t_level[i].time_end);
 	i++;

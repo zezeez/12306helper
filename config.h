@@ -22,10 +22,10 @@ struct user_config {
     int _max_queue_count;
     int _block_time;
     struct time_level _t_level[16];
-    char _prefer_train_type[32];
-    char _prefer_train_no[512];
-    char _prefer_seat_type[16];
-    //char _prefer_ticket_time[32];
+    char _prefer_train_type[32][8];
+    char _prefer_train_no[256][16];
+    char _prefer_seat_type[16][8];
+    char _prefer_seat_type_all[32];
     char _use_cdn_server_file[64];
     char _passenger_name[16];
     char _mail_username[64];

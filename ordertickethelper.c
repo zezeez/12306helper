@@ -47,6 +47,7 @@ int main(int argc, char *argv[])
     }
 
     if(!config._query_only_mode && checkUserIsLogin() != 0) {
+	printf("当前用户未登陆，开始登陆...\n");
 	user_login();
     }
     query_ticket();
@@ -102,7 +103,9 @@ int do_init()
     init_list(&cached_stations);
     init_list(&black_list);
 
+    printf("正在加载站点列表...\n");
     load_stations_name(all_stations);
+    printf("正在加载配置文件...\n");
     if(load_config(&config) < 0) {
 	fprintf(stderr, "load configuration fail, check is tickethelper.conf exist.\n");
 	return -1;
@@ -110,9 +113,11 @@ int do_init()
     fill_user_config_telecode();
     print_config(&config);
     if(config._use_cdn_server_file[0]) {
+	printf("正在加载cnd服务器列表...\n");
 	load_cdn_server(&host_list, config._use_cdn_server_file);
 	nxt = host_list;
     }
+    printf("初始化完成\n");
     return 0;
 }
 
@@ -612,15 +617,17 @@ int perform_request(const char *url, enum request_type type, void *post, struct 
 
 int check_current_train_has_prefix_ticket(struct train_info *ptrain)
 {
-    if(strstr(config._prefer_seat_type, "M") != NULL &&  ptrain->zy_num[0] != '\0') {
+    if(config._prefer_seat_type_all[0] == 0) {
 	return 0;
-    } else if(strstr(config._prefer_seat_type, "O") != NULL &&  ptrain->ze_num[0] != '\0') {
+    } else if(strstr(config._prefer_seat_type_all, "M") != NULL &&  ptrain->zy_num[0] != '\0') {
 	return 0;
-    } else if(strstr(config._prefer_seat_type, "1") != NULL &&  ptrain->yz_num[0] != '\0') {
+    } else if(strstr(config._prefer_seat_type_all, "O") != NULL &&  ptrain->ze_num[0] != '\0') {
 	return 0;
-    } else if(strstr(config._prefer_seat_type, "3") != NULL &&  ptrain->yw_num[0] != '\0') {
+    } else if(strstr(config._prefer_seat_type_all, "1") != NULL &&  ptrain->yz_num[0] != '\0') {
 	return 0;
-    } else if(strstr(config._prefer_seat_type, "4") != NULL &&  ptrain->rw_num[0] != '\0') {
+    } else if(strstr(config._prefer_seat_type_all, "3") != NULL &&  ptrain->yw_num[0] != '\0') {
+	return 0;
+    } else if(strstr(config._prefer_seat_type_all, "4") != NULL &&  ptrain->rw_num[0] != '\0') {
 	return 0;
     } else {
 	return 1;
@@ -629,28 +636,48 @@ int check_current_train_has_prefix_ticket(struct train_info *ptrain)
 
 int check_current_train_submitable(struct train_info *ptrain)
 {
-    char tmp[2];
-    tmp[0] = ptrain->station_train_code[0];
-    tmp[1] = '\0';
+    //char tmp[2];
+    //tmp[0] = ptrain->station_train_code[0];
+    //tmp[1] = '\0';
+    int i = 0;
     if(ptrain->can_web_buy[0] != 'Y') {
 	return 1;
     }
-    if(config._prefer_train_no[0] != '\0') {
-	if(strstr(config._prefer_train_no, ptrain->station_train_code) == NULL) {
+    if(config._prefer_train_no[0][0] != '\0') {
+	/*if(strstr(config._prefer_train_no, ptrain->station_train_code) == NULL) {
+	    return 1;
+	}*/
+	while(config._prefer_train_no[i][0]) {
+	    if(strcmp(config._prefer_train_no[i], ptrain->station_train_code) == 0) {
+		break;
+	    }
+	    i++;
+	}
+	if(config._prefer_train_no[i][0] == 0 && i != 0) {
 	    return 1;
 	}
 	if(check_current_train_has_prefix_ticket(ptrain) == 0 &&
 		!current_train_is_at_black_list(ptrain)) {
 	    return 0;
-	 }
+	}
 	return 1;
     }
-    if(config._prefer_train_type[0] != 0) {
-	if(strstr(config._prefer_train_type, tmp) == NULL) {
+    i = 0;
+    if(config._prefer_train_type[0][0] != 0) {
+	/*if(strstr(config._prefer_train_type, tmp) == NULL) {
+	    return 1;
+	}*/
+	while(config._prefer_train_type[i][0]) {
+	    if(config._prefer_train_type[i][0] == ptrain->station_train_code[0]) {
+		break;
+	    }
+	    i++;
+	}
+	if(config._prefer_train_type[i][0] == 0 && i != 0) {
 	    return 1;
 	}
     }
-    int i = 0;
+    i = 0;
     while(config._t_level[i].time_start[0] != 0) {
 	if(strcmp(ptrain->start_time, config._t_level[i].time_start) >= 0 && 
 		strcmp(ptrain->start_time, config._t_level[i].time_end) <= 0) {
@@ -811,7 +838,7 @@ int init_my12306()
     return 0;
 }
 
-int get_passenger_tickets_for_submit(cJSON *root, char *ptr, size_t size)
+int get_passenger_tickets_for_submit(cJSON *root)
 {
     cJSON *limitSeatTicketDTO = cJSON_GetObjectItem(root, "limitBuySeatTicketDTO");
     if(cJSON_IsNull(limitSeatTicketDTO)) {
@@ -826,26 +853,47 @@ int get_passenger_tickets_for_submit(cJSON *root, char *ptr, size_t size)
     if(cJSON_IsNull(seat_obj)) {
 	return 1;
     }
-    int i;
+
+    int i, j;
     int array_size = cJSON_GetArraySize(seat_obj);
+    tinfo.seat_type[0] = 0;
+
     for(i = 0; i < array_size; i++) {
 	cJSON *id = cJSON_GetObjectItem(seat_obj, "id");
 	if(!cJSON_IsString(id)) {
 	    return 1;
 	}
-	if(strstr(config._prefer_seat_type, id->valuestring) != NULL) {
+	/*if(strstr(config._prefer_seat_type_all, id->valuestring) != NULL) {
+	    strncpy(tinfo.seat_type, id->valuestring, sizeof(tinfo.seat_type));
+	    break;
+	}*/
+	if(config._prefer_seat_type[0][0] == 0) {
 	    strncpy(tinfo.seat_type, id->valuestring, sizeof(tinfo.seat_type));
 	    break;
 	}
+	j = 0;
+	while(config._prefer_seat_type[j][0]) {
+	    if(strcmp(config._prefer_seat_type[j], id->valuestring) == 0) {
+		strncpy(tinfo.seat_type, id->valuestring, sizeof(tinfo.seat_type));
+		break;
+	    }
+	    j++;
+	}
+	if(config._prefer_seat_type[j][0]) {
+	    break;
+	}
     }
-    int num = snprintf(ptr, size, "%s,0,1,%s,1,%s,%s,N", tinfo.seat_type, cur_passenger.passenger_name, 
+    if(tinfo.seat_type[0] == 0) {
+	return 2;
+    }
+    int num = snprintf(tinfo.passenger_tickets, sizeof(tinfo.passenger_tickets), "%s,0,1,%s,1,%s,%s,N", tinfo.seat_type, cur_passenger.passenger_name, 
 	    	cur_passenger.passenger_id_no, cur_passenger.mobile_no);
     return num;
 }
 
-int get_old_passenger_for_submit(char *ptr, size_t size)
+int get_old_passenger_for_submit()
 {
-    int num = snprintf(ptr, size, "%s,1,%s,1_", cur_passenger.passenger_name, cur_passenger.passenger_id_no);
+    int num = snprintf(tinfo.old_passenger, sizeof(tinfo.old_passenger), "%s,1,%s,1_", cur_passenger.passenger_name, cur_passenger.passenger_id_no);
     return num;
 }
 
@@ -903,11 +951,14 @@ int check_order_info(cJSON *json)
     char param[256];
 
     snprintf(url, sizeof(url), "%s", BASEURL"confirmPassenger/checkOrderInfo");
-    char passenger[64], old_passenger[64];
-    get_passenger_tickets_for_submit(json, passenger, sizeof(passenger));
-    char *url_encode_passenger = curl_easy_escape(curl, passenger, strlen(passenger));
-    get_old_passenger_for_submit(old_passenger, sizeof(old_passenger));
-    char *url_encode_old_passenger = curl_easy_escape(curl, old_passenger, strlen(old_passenger));
+    
+    if(get_passenger_tickets_for_submit(json) == 2) {
+	printf("No such seat type: %s\n", config._prefer_seat_type_all);
+	return 3;
+    }
+    char *url_encode_passenger = curl_easy_escape(curl, tinfo.passenger_tickets, strlen(tinfo.passenger_tickets));
+    get_old_passenger_for_submit();
+    char *url_encode_old_passenger = curl_easy_escape(curl, tinfo.old_passenger, strlen(tinfo.old_passenger));
     snprintf(param, sizeof(param), "%s%s%s%s%s%s", "cancel_flag=2&bed_level_order_num=000000000000000000000000000000&passengerTicketStr=", url_encode_passenger, "&oldPassengerStr=", url_encode_old_passenger, "&tour_flag=dc&whatsSelect=1&randCode=&_json_att=&REPEAT_SUBMIT_TOKEN=", tinfo.repeat_submit_token);
 
     curl_free(url_encode_passenger);
@@ -1132,16 +1183,15 @@ int confirm_single_queue(cJSON *json, struct train_info *t_info)
 {
     char url[128];
     char param[512];
-    char passenger[64], old_passenger[64];
 
-    //snprintf(url, sizeof(url), "%s", BASEURL"confirmPassenger/confirmSingleForQueue");
-    snprintf(url, sizeof(url), "%s", BASEURL"confirmPassenger/confirmSingle");
+    snprintf(url, sizeof(url), "%s", BASEURL"confirmPassenger/confirmSingleForQueue");
+    //snprintf(url, sizeof(url), "%s", BASEURL"confirmPassenger/confirmSingle");
 
-    get_passenger_tickets_for_submit(json, passenger, sizeof(passenger));
-    get_old_passenger_for_submit(old_passenger, sizeof(old_passenger));
+    //get_passenger_tickets_for_submit(json, passenger, sizeof(passenger));
+    //get_old_passenger_for_submit(old_passenger, sizeof(old_passenger));
 
-    char *url_encode_passenger = curl_easy_escape(curl, passenger, strlen(passenger));
-    char *url_encode_old_passenger = curl_easy_escape(curl, old_passenger, strlen(old_passenger));
+    char *url_encode_passenger = curl_easy_escape(curl, tinfo.passenger_tickets, strlen(tinfo.passenger_tickets));
+    char *url_encode_old_passenger = curl_easy_escape(curl, tinfo.old_passenger, strlen(tinfo.old_passenger));
 
     snprintf(param, sizeof(param), "passengerTicketStr=%s&oldPassengerStr=%s&randCode=&purpose_codes=00&key_check_isChange=%s&leftTicketStr=%s&train_location=%s&choose_seats=&seatDetailType=000&whatsSelect=1&roomType=00&dwAll=N&_json_att=&REPEAT_SUBMIT_TOKEN=%s", url_encode_passenger, url_encode_old_passenger,
 	    tinfo.key_is_change, tinfo.left_ticket, tinfo.train_location,
@@ -1268,27 +1318,29 @@ int submit_order_request(struct train_info *t_info)
 
 	printf("正在检查预提交订单...\n");
 	int ret = check_order_info(root);
-	if(ret != 0) {
+	if(ret == 2) {
 	    printf("当前需要验证码\n");
 	    if(show_varification_code(1) != 0) {
 		cJSON_Delete(root);
 		return 1;
 	    }
-	} else {
+	} else if(ret == 0) {
 	    printf("当前无需验证码，继续提交订单...\n");
+	} else {
+	    return 1;
 	}
-	/*printf("正在获取排队人数...\n");
+	printf("正在获取排队人数...\n");
 	if(get_queue_count(root, ptrain) != 0) {
 	    cJSON_Delete(root);
 	    return 1;
-	}*/
+	}
 	printf("正在确认订单请求...\n");
 	if(confirm_single_queue(root, ptrain) != 0) {
 	    cJSON_Delete(root);
 	    return 1;
 	}
 	int wait_time;
-	/*printf("系统出票中，开始等待...\n");
+	printf("系统出票中，开始等待...\n");
 	while((wait_time = query_order_wait_time()) == 3) {
 	    printf("继续等待系统出票...\n");
 	    sleep(3);
@@ -1296,7 +1348,7 @@ int submit_order_request(struct train_info *t_info)
 	if(wait_time != 0) {
 	    cJSON_Delete(root);
 	    return 1;
-	}*/
+	}
 	printf("系统出票成功，预订已完成，请在30分钟内支付以完成订单\n");
 	if(config._mail_username[0] != 0 && config._mail_password[0] != 0 && config._mail_server[0] != 0) {
 	    if(sendmail(&config, ptrain->from_station_name, ptrain->to_station_name,

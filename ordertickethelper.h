@@ -101,6 +101,8 @@ struct ticket_info {
     char seat_type[4];
     char train_location[4];
     char order_no[32];
+    char passenger_tickets[64];
+    char old_passenger[64];
 };
 
 struct command_line_option {
