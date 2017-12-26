@@ -86,11 +86,6 @@ int init_curl()
 #endif
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_memory_callback);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &chunk);
-    //host_list = curl_slist_append(NULL, "kyfw.12306.cn:443:183.61.26.197:443");
-    //host_list = curl_slist_append(host_list, "kyfw.12306.cn:443:36.102.235.206:443");
-    //host_list = curl_slist_append(host_list, "kyfw.12306.cn:443:27.148.151.214:443");
-    //nxt = host_list;
-
     //curl_easy_setopt(curl, CURLOPT_NOBODY, 1l);
     return 0;
 }
@@ -233,7 +228,7 @@ static int
 start_login()
 {
     char url[64];
-    char post_data[128];
+    char post_data[256];
 
     snprintf(url, sizeof(url), "%s", "https://kyfw.12306.cn/passport/web/login");
     snprintf(post_data, sizeof(post_data), "username=%s&password=%s&appid=otn", config._username, config._password);
@@ -267,9 +262,6 @@ int show_varification_code(int auth_type)
 {
     pthread_t tid;
     int *ret;
-    //pthread_attr_t attr;
-    //pthread_attr_init(&attr);
-    //pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
     struct thread_data tdata;
     tdata.curl = curl;
     tdata.auth_type = auth_type;
@@ -366,50 +358,9 @@ int passenger_initdc()
 	return 1;
     }
     p = chunk.memory + chunk.size * 2 / 3;
-    //char *init_seatTypes, *defaultTicketTypes, *init_cardTypes, *ticket_seat_codeMap, *ticketInfoForPassengerForm, *orderRequestDTO;
     char *s_pos, *e_pos;
     char *ticketInfoForPassengerForm;
     size_t size, i;
-    /*if((init_seatTypes = strstr(p, "init_seatTypes")) != NULL) {
-	s_pos = strchr(init_seatTypes, '{');
-	e_pos = strchr(init_seatTypes, ';');
-	if(s_pos && e_pos) {
-	    memcpy(tinfo.init_seatTypes, init_seatTypes, (size_t)(e_pos - s_pos));
-	    tinfo.init_seatTypes[e_pos - s_pos] = '\0';
-	}
-    } else {
-	return 1;
-    }
-    if((defaultTicketTypes = strstr(init_seatTypes, "defaultTicketTypes")) != NULL) {
-	s_pos = strchr(defaultTicketTypes, '{');
-	e_pos = strchr(defaultTicketTypes, ';');
-	if(s_pos && e_pos) {
-	    memcpy(tinfo.defaultTicketTypes, defaultTicketTypes, (size_t)(e_pos - s_pos));
-	    tinfo.defaultTicketTypes[e_pos - s_pos] = '\0';
-	}
-    } else {
-	return 1;
-    }
-    if((init_cardTypes = strstr(defaultTicketTypes, "init_cardTypes")) != NULL) {
-	s_pos = strchr(init_cardTypes, '{');
-	e_pos = strchr(init_cardTypes, ';');
-	if(s_pos && e_pos) {
-	    memcpy(tinfo.init_cardTypes, init_cardTypes, (size_t)(e_pos - s_pos));
-	    tinfo.init_cardTypes[e_pos - s_pos] = '\0';
-	}
-    } else {
-	return 1;
-    }
-    if((ticket_seat_codeMap = strstr(init_cardTypes, "ticket_seat_codeMap")) != NULL) {
-	s_pos = strchr(ticket_seat_codeMap, '{');
-	e_pos = strchr(ticket_seat_codeMap, ';');
-	if(s_pos && e_pos) {
-	    memcpy(tinfo.ticket_seat_codeMap, ticket_seat_codeMap, (size_t)(e_pos - s_pos));
-	    tinfo.ticket_seat_codeMap[e_pos - s_pos] = '\0';
-	}
-    } else {
-	return 1;
-    }*/
     if((ticketInfoForPassengerForm = strstr(p, "ticketInfoForPassengerForm")) != NULL) {
 	s_pos = strchr(ticketInfoForPassengerForm, '{');
 	e_pos = strchr(ticketInfoForPassengerForm, ';');
@@ -428,16 +379,6 @@ int passenger_initdc()
     } else {
 	return 1;
     }
-    /*if((orderRequestDTO = strstr(ticketInfoForPassengerForm, "orderRequestDTO")) != NULL) {
-	s_pos = strchr(orderRequestDTO, '{');
-	e_pos = strchr(orderRequestDTO, ';');
-	if(s_pos && e_pos) {
-	    memcpy(tinfo.orderRequestDTO, orderRequestDTO, (size_t)(e_pos - s_pos));
-	    tinfo.orderRequestDTO[e_pos - s_pos] = '\0';
-	}
-    } else {
-	return 1;
-    }*/
     return 0;
 }
 
@@ -562,7 +503,6 @@ int get_passenger_dtos(const char *repeat_token)
 	if(cJSON_IsString(param)) {
 	    strncpy(pinfo[i].index_id, param->valuestring, sizeof(pinfo->index_id));
 	}
-	//cJSON_Delete(passenger);
     }
     memset(pinfo + i, 0, sizeof(struct passenger_info));
     cJSON_Delete(root);
@@ -615,7 +555,7 @@ int perform_request(const char *url, enum request_type type, void *post, struct 
     return 0;
 }
 
-int check_current_train_has_prefix_ticket(struct train_info *ptrain)
+int current_train_has_prefix_ticket(struct train_info *ptrain)
 {
     if(config._prefer_seat_type_all[0] == 0) {
 	return 0;
@@ -629,67 +569,89 @@ int check_current_train_has_prefix_ticket(struct train_info *ptrain)
 	return 0;
     } else if(strstr(config._prefer_seat_type_all, "4") != NULL &&  ptrain->rw_num[0] != '\0') {
 	return 0;
+    } else if(strstr(config._prefer_seat_type_all, "5") != NULL &&  ptrain->wz_num[0] != '\0') {
+	return 0;
+    } else if(strstr(config._prefer_seat_type_all, "A") != NULL &&  ptrain->qt_num[0] != '\0') {
+	return 0;
+    } else if(strstr(config._prefer_seat_type_all, "P") != NULL &&  ptrain->swz_num[0] != '\0') {
+	return 0;
     } else {
 	return 1;
     }
 }
 
-int check_current_train_submitable(struct train_info *ptrain)
+int process_prefix_train_no(struct train_info *ptrain)
 {
-    //char tmp[2];
-    //tmp[0] = ptrain->station_train_code[0];
-    //tmp[1] = '\0';
+    struct train_info *pt = ptrain;
     int i = 0;
-    if(ptrain->can_web_buy[0] != 'Y') {
-	return 1;
-    }
-    if(config._prefer_train_no[0][0] != '\0') {
-	/*if(strstr(config._prefer_train_no, ptrain->station_train_code) == NULL) {
-	    return 1;
-	}*/
-	while(config._prefer_train_no[i][0]) {
-	    if(strcmp(config._prefer_train_no[i], ptrain->station_train_code) == 0) {
-		break;
+    while(config._prefer_train_no[i][0]) {
+	pt = ptrain;
+	while(pt->train_no) {
+	    if(pt->can_web_buy[0] == 'Y' &&
+		    strcmp(config._prefer_train_no[i], pt->station_train_code) == 0 &&
+		    current_train_has_prefix_ticket(pt) == 0 &&
+		    !current_train_is_at_black_list(pt) &&
+		    submit_order_request(pt) == 0) {
+		return 0;
 	    }
-	    i++;
-	}
-	if(config._prefer_train_no[i][0] == 0 && i != 0) {
-	    return 1;
-	}
-	if(check_current_train_has_prefix_ticket(ptrain) == 0 &&
-		!current_train_is_at_black_list(ptrain)) {
-	    return 0;
-	}
-	return 1;
-    }
-    i = 0;
-    if(config._prefer_train_type[0][0] != 0) {
-	/*if(strstr(config._prefer_train_type, tmp) == NULL) {
-	    return 1;
-	}*/
-	while(config._prefer_train_type[i][0]) {
-	    if(config._prefer_train_type[i][0] == ptrain->station_train_code[0]) {
-		break;
-	    }
-	    i++;
-	}
-	if(config._prefer_train_type[i][0] == 0 && i != 0) {
-	    return 1;
-	}
-    }
-    i = 0;
-    while(config._t_level[i].time_start[0] != 0) {
-	if(strcmp(ptrain->start_time, config._t_level[i].time_start) >= 0 && 
-		strcmp(ptrain->start_time, config._t_level[i].time_end) <= 0) {
-	    break;
+	    pt++;
 	}
 	i++;
     }
-    if(config._t_level[0].time_start[0] == 0 || config._t_level[i].time_start[0] != 0) {
-	if(check_current_train_has_prefix_ticket(ptrain) == 0 && 
-		!current_train_is_at_black_list(ptrain)) {
+    return 1;
+}
+
+int current_train_is_at_prefix_time(struct train_info *ptrain)
+{
+    if(config._t_level[0].time_start[0] == 0) {
+	return 0;
+    }
+    int i = 0;
+    while(config._t_level[i].time_start[0] != 0) {
+	if(strcmp(ptrain->start_time, config._t_level[i].time_start) >= 0 && 
+		strcmp(ptrain->start_time, config._t_level[i].time_end) <= 0) {
 	    return 0;
 	}
+	i++;
+    }
+    return 1;
+}
+
+
+int process_prefix_train_type(struct train_info *ptrain)
+{
+    struct train_info *pt = ptrain;
+    int i = 0;
+    while(config._prefer_train_type[i][0]) {
+	pt = ptrain;
+	while(pt->train_no) {
+	    if(pt->can_web_buy[0] == 'Y' &&
+		    config._prefer_train_type[i][0] == pt->station_train_code[0] &&
+		    current_train_is_at_prefix_time(pt) == 0 &&
+		    current_train_has_prefix_ticket(pt) == 0 &&
+		    !current_train_is_at_black_list(pt) &&
+		    submit_order_request(pt) == 0) {
+		return 0;
+	    }
+	    pt++;
+	}
+	i++;
+    }
+    return 1;
+}
+
+int process_not_prefix_train(struct train_info *ptrain)
+{
+    struct train_info *pt = ptrain;
+    while(pt->train_no) {
+	if(pt->can_web_buy[0] == 'Y' &&
+		current_train_is_at_prefix_time(pt) &&
+		current_train_has_prefix_ticket(pt) == 0 &&
+		!current_train_is_at_black_list(pt) &&
+		submit_order_request(pt) == 0) {
+	    return 0;
+	}
+	pt++;
     }
     return 1;
 }
@@ -697,17 +659,15 @@ int check_current_train_submitable(struct train_info *ptrain)
 int process_train(struct train_info *ptrain)
 {
     struct train_info *pt_info = ptrain;
-    while(pt_info->train_no) {
-	if(check_current_train_submitable(pt_info) == 0) {
-	    if(submit_order_request(pt_info) == 0) {
-	    //printf("当前车次：%s，乘车日期：%s，出发时间：%s，到达时间：%s，出发站：%s，到达站：%s\n", pt_info->station_train_code,
-		    //pt_info->start_train_date, pt_info->start_time, pt_info->arrive_time, pt_info->from_station_name, pt_info->to_station_name);
-		return 0;
-	    }
-	}
-	pt_info++;
+    int ret_val;
+    if(config._prefer_train_no[0][0]) {
+	ret_val = process_prefix_train_no(pt_info);
+    } else if(config._prefer_train_type[0][0]) {
+	ret_val = process_prefix_train_type(pt_info);
+    } else {
+	ret_val = process_not_prefix_train(pt_info);
     }
-    return 1;
+    return ret_val;
 }
 
 int query_ticket()
@@ -853,41 +813,49 @@ int get_passenger_tickets_for_submit(cJSON *root)
     if(cJSON_IsNull(seat_type_codes)) {
 	return 1;
     }
-    cJSON *seat_obj = cJSON_GetArrayItem(seat_type_codes, 0);
-    if(cJSON_IsNull(seat_obj)) {
-	return 1;
-    }
-
     int i, j;
-    int array_size = cJSON_GetArraySize(seat_obj);
+    int array_size = cJSON_GetArraySize(seat_type_codes);
+    cJSON *st[32];
     tinfo.seat_type[0] = 0;
 
     for(i = 0; i < array_size; i++) {
+	cJSON *seat_obj = cJSON_GetArrayItem(seat_type_codes, i);
+	if(cJSON_IsNull(seat_obj)) {
+	    return 1;
+	}
 	cJSON *id = cJSON_GetObjectItem(seat_obj, "id");
 	if(!cJSON_IsString(id)) {
 	    return 1;
 	}
-	/*if(strstr(config._prefer_seat_type_all, id->valuestring) != NULL) {
-	    strncpy(tinfo.seat_type, id->valuestring, sizeof(tinfo.seat_type));
-	    break;
-	}*/
-	if(config._prefer_seat_type[0][0] == 0) {
-	    strncpy(tinfo.seat_type, id->valuestring, sizeof(tinfo.seat_type));
-	    break;
-	}
-	j = 0;
-	while(config._prefer_seat_type[j][0]) {
-	    if(strcmp(config._prefer_seat_type[j], id->valuestring) == 0) {
-		strncpy(tinfo.seat_type, id->valuestring, sizeof(tinfo.seat_type));
+	st[i] = id;
+    }
+
+    st[i] = NULL;
+    i = 0;
+
+    if(config._prefer_seat_type[0][0] == 0) {
+	strncpy(tinfo.seat_type, st[0]->valuestring, sizeof(tinfo.seat_type));
+    } else {
+	while(config._prefer_seat_type[i][0]) {
+	    j = 0;
+	    while(st[j]) {
+		if(strcmp(config._prefer_seat_type[i], st[j]->valuestring) == 0) {
+		    strncpy(tinfo.seat_type, st[j]->valuestring, sizeof(tinfo.seat_type));
+		    break;
+		}
+		j++;
+	    }
+	    if(st[j]) {
 		break;
 	    }
-	    j++;
-	}
-	if(config._prefer_seat_type[j][0]) {
-	    break;
+	    i++;
 	}
     }
-    if(tinfo.seat_type[0] == 0) {
+
+    if(tinfo.seat_type[0] == 0 && strstr(config._prefer_seat_type_all, "5") != NULL && 
+	    cJSON_IsString(st[0])) {
+	strncpy(tinfo.seat_type, st[0]->valuestring, sizeof(tinfo.seat_type));
+    } else if(tinfo.seat_type[0] == 0) {
 	return 2;
     }
     int num = snprintf(tinfo.passenger_tickets, sizeof(tinfo.passenger_tickets), "%s,0,1,%s,1,%s,%s,N", tinfo.seat_type, cur_passenger.passenger_name, 
@@ -1209,7 +1177,7 @@ int confirm_single_queue(cJSON *json, struct train_info *t_info)
     if(perform_request(url, POST, param, nxt) < 0) {
 	return -1;
     }
-    //printf("confirmPassengerSingleForQueue result: %s\n", chunk.memory);
+    printf("confirmPassengerSingleForQueue result: %s\n", chunk.memory);
     cJSON *root = cJSON_Parse(chunk.memory);
     if(cJSON_IsNull(root)) {
 	return 1;
@@ -1224,10 +1192,16 @@ int confirm_single_queue(cJSON *json, struct train_info *t_info)
 	return 1;
     }
     cJSON *submit_status = cJSON_GetObjectItem(data, "submitStatus");
+    if(cJSON_IsNull(submit_status) && cJSON_IsString(data)) {
+	printf("出票失败，原因：%s，该数据为缓存，", data->valuestring);
+	printf("将%s加入黑名单%d秒\n", t_info->station_train_code, config._block_time);
+	add_train_to_black_list(t_info);
+	return 1;
+    }
     if(!cJSON_IsTrue(submit_status)) {
 	cJSON *err_msg = cJSON_GetObjectItem(data, "errMsg");
-	if(cJSON_IsString(err_msg)) {
-	    printf("出票失败，原因：%s\n", err_msg->valuestring);
+	if(cJSON_IsString(data)) {
+	    printf("出票失败，原因：%s\n，该数据为缓存，", err_msg->valuestring);
 	}
 	printf("将%s加入黑名单%d秒\n", t_info->station_train_code, config._block_time);
 	add_train_to_black_list(t_info);
@@ -1333,7 +1307,7 @@ int submit_order_request(struct train_info *t_info)
 	} else {
 	    return 1;
 	}
-	printf("正在获取排队人数...\n");
+	/*printf("正在获取排队人数...\n");
 	if(get_queue_count(root, ptrain) != 0) {
 	    cJSON_Delete(root);
 	    return 1;
@@ -1361,7 +1335,7 @@ int submit_order_request(struct train_info *t_info)
 	    } else {
 		printf("send email failed.\n");
 	    }
-	}
+	}*/
 	//result_order_for_dc_queue(tinfo.order_no);
 	cJSON_Delete(root);
 	return 0;

@@ -94,7 +94,7 @@ int sendmail(struct user_config *uc, const char *from_station, const char *to_st
 
     /* This is the URL for your mailserver. Note the use of smtps:// rather
      * than smtp:// to request a SSL based connection. */
-    char mail_server[64];
+    char mail_server[128];
     snprintf(mail_server, sizeof(mail_server), "smtp://%s:587", uc->_mail_server);
     curl_easy_setopt(curl, CURLOPT_URL, mail_server);
 

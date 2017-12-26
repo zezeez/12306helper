@@ -54,13 +54,6 @@ button_press_event_cb (GtkWidget      *widget,
 	    }
 	    tres->is_selected[pos] = ~tres->is_selected[pos];
 	}
-	/*for(i = 0; i < 8; i++) {
-	  if(cor[i].x == 0 && cor[i].y == 0) {
-	  cor[i].x = (int) event->x;
-	  cor[i].y = (int) event->y - 30;
-	  break;
-	  }
-	  }*/
     }
     else if (event->button == GDK_BUTTON_SECONDARY)
     {
@@ -231,24 +224,19 @@ refresh(GtkWidget *widget,
     if(perform_request(url, GET, NULL, tres->tdata->nxt) < 0) {
 	return;
     }
-    //static int counter = 0;
     loader = gdk_pixbuf_loader_new();
     ret = gdk_pixbuf_loader_write(loader, (const guchar *)tres->tdata->r_data->memory, tres->tdata->r_data->size, &error);
-    //g_print("ret: %d, counter: %d\n", ret, ++counter);
     if(ret) {
 	pixbuf = gdk_pixbuf_loader_get_pixbuf(loader);
 	if(pixbuf) {
 	    gtk_image_set_from_pixbuf(GTK_IMAGE(tres->image_widget), pixbuf);
 	    g_object_unref(pixbuf);
 	}
-	//g_object_unref(loader);
     }
     error = NULL;
     gdk_pixbuf_loader_close(loader, &error);
-    //g_object_unref(error);
 }
  
-//void on_active(GtkWidget * widget, GdkEvent *event, gpointer data)
 void on_active(GtkWidget *window, void *user_data)
 {
     GtkWidget *event_box;
@@ -268,7 +256,7 @@ void on_active(GtkWidget *window, void *user_data)
 	snprintf(url, sizeof(url), "%s%.16lf", "https://kyfw.12306.cn/passport/captcha/captcha-image?login_site=E&module=passenger&rand=randp&", num);
     }
 
-    if(perform_request(url, GET, NULL, tres->tdata->nxt)) {
+    if(perform_request(url, GET, NULL, tres->tdata->nxt) < 0) {
 	return;
     }
 
@@ -280,17 +268,14 @@ void on_active(GtkWidget *window, void *user_data)
 	    if(pixbuf) {
 		g_object_unref(pixbuf);
 	    }
-	    //g_object_unref(loader);
 	    event_box = gtk_event_box_new();
 	    gtk_container_add (GTK_CONTAINER (window), event_box);
 	    gtk_container_add (GTK_CONTAINER (event_box), tres->image_widget);
 
-	    //g_signal_connect (event_box, "draw", G_CALLBACK (on_expose_event), NULL);
 	    g_signal_connect (event_box, "button-press-event",
 			    G_CALLBACK (button_press_event_cb), user_data);
 	    gtk_widget_set_events (event_box, gtk_widget_get_events (tres->image_widget)
-			    | GDK_BUTTON_PRESS_MASK/* | GDK_EXPOSURE_MASK*/);
-	    //gtk_widget_set_app_paintable(image_widget, TRUE);
+			    | GDK_BUTTON_PRESS_MASK);
     }
     gdk_pixbuf_loader_close(loader, &error);
 }
@@ -303,37 +288,36 @@ activate (GtkApplication *app,
     GtkWidget *button;
     GtkWidget *button_box;
     GtkWidget *box;
-    static struct thread_res tres;
+    //static struct thread_res tres;
 
-    memset(&tres, 0, sizeof(tres));
-    tres.tdata = (struct thread_data *) user_data;
+    //memset(&tres, 0, sizeof(tres));
+    struct thread_res *tres = (struct thread_res *) user_data;
 
     window = gtk_application_window_new (app);
     gtk_window_set_title (GTK_WINDOW (window), "验证码");
     gtk_window_set_default_size (GTK_WINDOW (window), 295, 250);
     gtk_window_set_position(GTK_WINDOW(window), GTK_WIN_POS_CENTER);
     g_signal_connect(window, "destroy", G_CALLBACK(gtk_widget_destroy), NULL);
-    tres.window = window;
+    tres->window = window;
 
-    tres.layout = gtk_layout_new(NULL, NULL);
+    tres->layout = gtk_layout_new(NULL, NULL);
     box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
     button_box = gtk_button_box_new (GTK_ORIENTATION_HORIZONTAL);
 
-    on_active(box, (void *)&tres);
+    on_active(box, user_data);
     //gtk_container_add (GTK_CONTAINER (window), box);
-    //g_signal_connect (GTK_WINDOW(window), "expose-event", G_CALLBACK (on_expose_event), NULL);
 
     button = gtk_button_new_with_label ("刷新");
-    g_signal_connect (button, "clicked", G_CALLBACK (refresh), (void *)&tres);
+    g_signal_connect (button, "clicked", G_CALLBACK (refresh), user_data);
     //g_signal_connect_swapped (button, "clicked", G_CALLBACK (gtk_widget_destroy), window);
   
     gtk_container_add (GTK_CONTAINER (button_box), button);
     button = gtk_button_new_with_label ("提交");
-    g_signal_connect (button, "clicked", G_CALLBACK (submit), (void *)&tres);
+    g_signal_connect (button, "clicked", G_CALLBACK (submit), user_data);
     gtk_container_add (GTK_CONTAINER (button_box), button);
     gtk_container_add (GTK_CONTAINER (box), button_box);
-    gtk_layout_put(GTK_LAYOUT(tres.layout), box, 0, 0);
-    gtk_container_add(GTK_CONTAINER(window), tres.layout);
+    gtk_layout_put(GTK_LAYOUT(tres->layout), box, 0, 0);
+    gtk_container_add(GTK_CONTAINER(window), tres->layout);
 
     gtk_widget_show_all (window);
 }
@@ -342,15 +326,24 @@ void *
 show_varification_code_main (void *data)
 {
     GtkApplication *app;
-    char *argv[1];
-    argv[0] = "a.out";
+    char *argv[] = {"a.out", NULL};
     int *ret_val = (int *) malloc(sizeof(int));
+    struct thread_res *tres = (struct thread_res *) malloc(sizeof(struct thread_res));
+    if(tres == NULL) {
+	perror("malloc: ");
+	*ret_val = -1;
+	return (void *) ret_val;
+    }
+    memset(tres, 0, sizeof(struct thread_res));
+    tres->tdata = data;
 
-    app = gtk_application_new ("org.gtk.ticket", G_APPLICATION_FLAGS_NONE);
-
-    g_signal_connect (app, "activate", G_CALLBACK (activate), data);
+    app = gtk_application_new ("org.gtk.tickethelper", G_APPLICATION_FLAGS_NONE);
+    g_signal_connect (app, "activate", G_CALLBACK (activate), tres);
     *ret_val = g_application_run (G_APPLICATION (app), 1, argv);
     g_object_unref (app);
+
+    free(tres);
+
     if(success) {
 	*ret_val = 100;  /* we return 100 when varification success */
     }
