@@ -90,14 +90,11 @@ struct train_info {
 
 struct ticket_info {
     char repeat_submit_token[64];
-    //char init_seatTypes[256];
-    //char defaultTicketTypes[256];
-    //char init_cardTypes[256];
-    //char ticket_seat_codeMap[1024];
     char ticketInfoForPassengerForm[8192];
     //char orderRequestDTO[512];
-    char left_ticket[64];
-    char key_is_change[64];
+    char left_ticket[128];
+    char yp_info_detail[128];
+    char key_is_change[128];
     char seat_type[4];
     char train_location[4];
     char order_no[32];

@@ -156,6 +156,7 @@ do_varification(void *user_data)
     } else {
 	snprintf(post_data, sizeof(post_data), "answer=%s&login_site=E&rand=randp", urlencode);
     }
+    curl_free(urlencode);
 
     if(perform_request(url, POST, post_data, tres->tdata->nxt) < 0) {
 	curl_free(urlencode);
@@ -164,18 +165,16 @@ do_varification(void *user_data)
     cJSON *ret_json = cJSON_Parse(tres->tdata->r_data->memory);
     if(!ret_json) {
 	fprintf(stderr, "cJSON_Parse: %s\n", cJSON_GetErrorPtr());
-	curl_free(urlencode);
 	return -1;
     }
     cJSON *ret_code = cJSON_GetObjectItem(ret_json, "result_code");
     if(!cJSON_IsString(ret_code)) {
 	fprintf(stderr, "error parse json data\n");
-	curl_free(urlencode);
+	cJSON_Delete(ret_json);
 	return -1;
     }
     if(strcmp(ret_code->valuestring, "4") == 0) {
 	cJSON_Delete(ret_json);
-	curl_free(urlencode);
 	return 0;
     } else {
 	cJSON *errMsg = cJSON_GetObjectItem(ret_json, "result_message");
@@ -184,19 +183,22 @@ do_varification(void *user_data)
 	}
 	refresh(tres->image_widget, user_data);
     }
-    curl_free(urlencode);
+    cJSON_Delete(ret_json);
     return 1;
 }
 
-static void
+static gboolean
 submit(GtkWidget *widget,
 	gpointer user_data)
 {
     struct thread_res *tres = (struct thread_res *) user_data;
     if(do_varification(user_data) == 0) {
 	success = TRUE;
-	g_signal_emit_by_name(tres->window, "destroy");
+	//g_signal_emit_by_name(tres->window, "destroy");
+	//g_signal_emit_by_name(tres->window, "delete-event");
+	gtk_widget_destroy(tres->window);
     }
+    return TRUE;
 }
 
 static void
@@ -288,9 +290,7 @@ activate (GtkApplication *app,
     GtkWidget *button;
     GtkWidget *button_box;
     GtkWidget *box;
-    //static struct thread_res tres;
 
-    //memset(&tres, 0, sizeof(tres));
     struct thread_res *tres = (struct thread_res *) user_data;
 
     window = gtk_application_window_new (app);
@@ -327,6 +327,9 @@ show_varification_code_main (void *data)
 {
     GtkApplication *app;
     char *argv[] = {"a.out", NULL};
+
+    success = FALSE;
+
     int *ret_val = (int *) malloc(sizeof(int));
     struct thread_res *tres = (struct thread_res *) malloc(sizeof(struct thread_res));
     if(tres == NULL) {
