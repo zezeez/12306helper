@@ -136,17 +136,19 @@ do_varification(void *user_data)
     char *p_str_cor = str_cor;
     struct thread_res *tres = (struct thread_res *) user_data;
 
-    snprintf(url, sizeof(url), "%s", "https://kyfw.12306.cn/passport/captcha/captcha-check");
+    snprintf(url, sizeof(url), "https://kyfw.12306.cn/passport/captcha/captcha-check");
     memset(str_cor, 0, sizeof(str_cor));
 
     for(i = 0; i < 8; i++) {
 	if(tres->is_selected[i]) {
-	    snprintf(p_str_cor, sizeof(str_cor), "%d,%d,", tres->cor[i].x, tres->cor[i].y);
+	    snprintf(p_str_cor, sizeof(str_cor) - (p_str_cor - str_cor), "%d,%d,", tres->cor[i].x, tres->cor[i].y);
 	    p_str_cor += strlen(p_str_cor);
 	}
     }
-    if(i) {
+    if(str_cor[0]) {
 	str_cor[strlen(str_cor) - 1] = '\0';
+    } else {
+	return 1;
     }
     char *urlencode = curl_easy_escape(tres->tdata->curl, str_cor, strlen(str_cor));
     char post_data[64];
@@ -217,9 +219,9 @@ refresh(GtkWidget *widget,
 
     num = rand() / RAND_MAX;
     if(tres->tdata->auth_type == 0) {
-	snprintf(url, sizeof(url), "%s%.16lf", "https://kyfw.12306.cn/passport/captcha/captcha-image?login_site=E&module=login&rand=sjrand&", num);
+	snprintf(url, sizeof(url), "https://kyfw.12306.cn/passport/captcha/captcha-image?login_site=E&module=login&rand=sjrand&%.16lf", num);
     } else {
-	snprintf(url, sizeof(url), "%s%.16lf", "https://kyfw.12306.cn/passport/captcha/captcha-image?login_site=E&module=passenger&rand=randp&", num);
+	snprintf(url, sizeof(url), "https://kyfw.12306.cn/passport/captcha/captcha-image?login_site=E&module=passenger&rand=randp&%.16lf", num);
     }
 
 
@@ -253,9 +255,9 @@ void on_active(GtkWidget *window, void *user_data)
     num = (double)rand() / RAND_MAX;
 
     if(tres->tdata->auth_type == 0) {
-	snprintf(url, sizeof(url), "%s%.16lf", "https://kyfw.12306.cn/passport/captcha/captcha-image?login_site=E&module=login&rand=sjrand&", num);
+	snprintf(url, sizeof(url), "https://kyfw.12306.cn/passport/captcha/captcha-image?login_site=E&module=login&rand=sjrand&%.16lf", num);
     } else {
-	snprintf(url, sizeof(url), "%s%.16lf", "https://kyfw.12306.cn/passport/captcha/captcha-image?login_site=E&module=passenger&rand=randp&", num);
+	snprintf(url, sizeof(url), "https://kyfw.12306.cn/passport/captcha/captcha-image?login_site=E&module=passenger&rand=randp&%.16lf", num);
     }
 
     if(perform_request(url, GET, NULL, tres->tdata->nxt) < 0) {

@@ -230,7 +230,7 @@ start_login()
     char url[64];
     char post_data[256];
 
-    snprintf(url, sizeof(url), "%s", "https://kyfw.12306.cn/passport/web/login");
+    snprintf(url, sizeof(url), "https://kyfw.12306.cn/passport/web/login");
     snprintf(post_data, sizeof(post_data), "username=%s&password=%s&appid=otn", config._username, config._password);
 
     if(perform_request(url, POST, post_data, nxt) < 0) {
@@ -340,8 +340,8 @@ int passenger_initdc()
     char url[64];
     char param[16];
 
-    snprintf(url, sizeof(url), "%s", BASEURL"confirmPassenger/initDc");
-    snprintf(param, sizeof(param), "%s", "_json_attr");
+    snprintf(url, sizeof(url), BASEURL"confirmPassenger/initDc");
+    snprintf(param, sizeof(param), "_json_attr");
 
     if(perform_request(url, POST, param, nxt) < 0) {
 	return -1;
@@ -387,8 +387,8 @@ int get_passenger_dtos(const char *repeat_token)
     char url[64];
     char par[64];
 
-    snprintf(url, sizeof(url), "%s", BASEURL"confirmPassenger/getPassengerDTOs");
-    snprintf(par, sizeof(par), "%s%s", "_json_attr=&REPEAT_SUBMIT_TOKEN=", repeat_token);
+    snprintf(url, sizeof(url), BASEURL"confirmPassenger/getPassengerDTOs");
+    snprintf(par, sizeof(par), "_json_attr=&REPEAT_SUBMIT_TOKEN=%s", repeat_token);
 
     if(perform_request(url, POST, par, nxt) < 0) {
 	return -1;
@@ -691,9 +691,11 @@ int query_ticket()
 	perform_request(log_url, GET, NULL, nxt);
 	if(perform_request(query_url, GET, NULL, nxt) < 0) {
 	    nanosleep(&t, NULL);
-	    nxt = nxt->next;
-	    if(nxt == NULL) {
-		nxt = host_list;
+	    if(config._use_cdn_server_file[0]) {
+		nxt = nxt->next;
+		if(nxt == NULL) {
+		    nxt = host_list;
+		}
 	    }
 	    continue;
 	}
@@ -734,8 +736,8 @@ int checkUserIsLogin()
     char url[64];
     char param[32];
 
-    snprintf(url, sizeof(url), "%s", BASEURL"login/checkUser");
-    snprintf(param, sizeof(param), "%s", "_json_att=");
+    snprintf(url, sizeof(url), BASEURL"login/checkUser");
+    snprintf(param, sizeof(param), "_json_att=");
 
     if(perform_request(url, POST, (void *)param, nxt) < 0) {
 	return -1;
@@ -772,7 +774,7 @@ int init_my12306()
 
     //snprintf(url, sizeof(url), "%s", BASEURL"login/userLogin");
     //perform_request(url, POST, (void *)"_json_att=", nxt);
-    snprintf(url, sizeof(url), "%s", BASEURL"passport?redirect=/otn/login/userLogin");
+    snprintf(url, sizeof(url), BASEURL"passport?redirect=/otn/login/userLogin");
     perform_request(url, GET, NULL, nxt);
     snprintf(url, sizeof(url), "https://kyfw.12306.cn/passport/web/auth/uamtk");
     perform_request(url, POST, (void *)"appid=otn", nxt);
@@ -896,9 +898,10 @@ int start_submit_order_request(struct train_info *t_info)
     ts = localtime(&now);
     char *p_stdate = t_info->start_train_date;
 
-    snprintf(url, sizeof(url), "%s", BASEURL"leftTicket/submitOrderRequest");
-    snprintf(param, sizeof(param), "%s%s%s%c%c%c%c-%c%c-%c%c%s%d-%d-%d%s%s%s%s%s", "secretStr=", t_info->secretStr, "&train_date=", *p_stdate, *(p_stdate + 1), *(p_stdate + 2), *(p_stdate + 3), *(p_stdate + 4), *(p_stdate + 5), *(p_stdate + 6), *(p_stdate + 7),
-	    "&back_train_date=", ts->tm_year + 1900, ts->tm_mon + 1, ts->tm_mday,"&tour_flag=dc&purpose_codes=ADULT&query_from_station_name=", config._from_station_name, "&query_to_station_name=", config._to_station_name, "&undefined");
+    snprintf(url, sizeof(url), BASEURL"leftTicket/submitOrderRequest");
+    snprintf(param, sizeof(param), "secretStr=%s&train_date=%c%c%c%c-%c%c-%c%c&back_train_date=%d-%d-%d&tour_flag=dc&purpose_codes=ADULT&query_from_station_name=%s&query_to_station_name=%s&undefined", t_info->secretStr, 
+	    *p_stdate, *(p_stdate + 1), *(p_stdate + 2), *(p_stdate + 3), *(p_stdate + 4), *(p_stdate + 5), *(p_stdate + 6), *(p_stdate + 7),
+	    ts->tm_year + 1900, ts->tm_mon + 1, ts->tm_mday, config._from_station_name, config._to_station_name);
 
     if(perform_request(url, POST, param, nxt) < 0) {
 	return -1;
@@ -922,7 +925,7 @@ int check_order_info(cJSON *json)
     char url[64];
     char param[512];
 
-    snprintf(url, sizeof(url), "%s", BASEURL"confirmPassenger/checkOrderInfo");
+    snprintf(url, sizeof(url), BASEURL"confirmPassenger/checkOrderInfo");
     
     if(get_passenger_tickets_for_submit(json) == 2) {
 	printf("No such seat type: %s\n", config._prefer_seat_type_all);
@@ -931,7 +934,7 @@ int check_order_info(cJSON *json)
     char *url_encode_passenger = curl_easy_escape(curl, tinfo.passenger_tickets, strlen(tinfo.passenger_tickets));
     get_old_passenger_for_submit();
     char *url_encode_old_passenger = curl_easy_escape(curl, tinfo.old_passenger, strlen(tinfo.old_passenger));
-    snprintf(param, sizeof(param), "%s%s%s%s%s%s", "cancel_flag=2&bed_level_order_num=000000000000000000000000000000&passengerTicketStr=", url_encode_passenger, "&oldPassengerStr=", url_encode_old_passenger, "&tour_flag=dc&whatsSelect=1&randCode=&_json_att=&REPEAT_SUBMIT_TOKEN=", tinfo.repeat_submit_token);
+    snprintf(param, sizeof(param), "cancel_flag=2&bed_level_order_num=000000000000000000000000000000&passengerTicketStr=%s&oldPassengerStr=%s&tour_flag=dc&whatsSelect=1&randCode=&_json_att=&REPEAT_SUBMIT_TOKEN=%s", url_encode_passenger, url_encode_old_passenger, tinfo.repeat_submit_token);
 
     curl_free(url_encode_passenger);
     curl_free(url_encode_old_passenger);
@@ -1097,7 +1100,7 @@ int get_queue_count(cJSON *json, struct train_info *t_info)
     //printf("date format: %s\n", date_format);
     //char *url_encode_train_date = curl_easy_escape(curl, date_format, strlen(date_format));
     
-    snprintf(url, sizeof(url), "%s", BASEURL"confirmPassenger/getQueueCount");
+    snprintf(url, sizeof(url), BASEURL"confirmPassenger/getQueueCount");
     snprintf(param, sizeof(param), "train_date=%s&train_no=%s&stationTrainCode=%s&seatType=%s&fromStationTelecode=%s&toStationTelecode=%s&leftTicket=%s&purpose_codes=00&train_location=%s&_json_att=&REPEAT_SUBMIT_TOKEN=%s", 
 	    date_format, t_info->train_no, 
 	    t_info->station_train_code, tinfo.seat_type, 
@@ -1165,7 +1168,7 @@ int confirm_single_queue(cJSON *json, struct train_info *t_info)
     char url[128];
     char param[1024];
 
-    snprintf(url, sizeof(url), "%s", BASEURL"confirmPassenger/confirmSingleForQueue");
+    snprintf(url, sizeof(url), BASEURL"confirmPassenger/confirmSingleForQueue");
     //snprintf(url, sizeof(url), "%s", BASEURL"confirmPassenger/confirmSingle");
 
     //get_passenger_tickets_for_submit(json, passenger, sizeof(passenger));
