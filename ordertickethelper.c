@@ -3,19 +3,22 @@
 int main(int argc, char *argv[])
 {
     int c;
-    while((c = getopt_long(argc, argv, "c:qQvV", long_options, NULL)) != -1) {
+    while((c = getopt_long(argc, argv, "c:hqQvV", long_options, NULL)) != -1) {
 	switch(c) {
 	    case 'c':
-		strncpy(config._config_path, optarg, sizeof(config._config_path));
+		strncpy(cmd_opt.config_file, optarg, sizeof(cmd_opt.config_file));
+		break;
+	    case 'h':
+		print_help();
 		break;
 	    case 'q':
-		config._queit_mode = 1;
+		cmd_opt.queit = true;
 		break;
 	    case 'Q':
-		config._query_only_mode = 1;
+		cmd_opt.query_only = true;
 		break;
 	    case 'v':
-		cmd_opt.verbose = 1;
+		cmd_opt.verbose = true;
 		break;
 	    case 'V':
 		print_app_version();
@@ -46,7 +49,7 @@ int main(int argc, char *argv[])
 	return 1;
     }
 
-    if(!config._query_only_mode && checkUserIsLogin() != 0) {
+    if(!cmd_opt.query_only && check_user_is_login() != 0) {
 	printf("当前用户未登陆，开始登陆...\n");
 	user_login();
     }
@@ -101,15 +104,20 @@ int do_init()
     printf("正在加载站点列表...\n");
     load_stations_name(all_stations);
     printf("正在加载配置文件...\n");
-    if(load_config(&config) < 0) {
+    if(load_config(&config, cmd_opt.config_file) < 0) {
 	fprintf(stderr, "load configuration fail, check is tickethelper.conf exist.\n");
 	return -1;
     }
     fill_user_config_telecode();
-    print_config(&config);
+    if(cmd_opt.verbose) {
+	print_config(&config);
+    }
     if(config._use_cdn_server_file[0]) {
-	printf("正在加载cnd服务器列表...\n");
+	printf("正在加载cdn服务器列表...\n");
 	load_cdn_server(&host_list, config._use_cdn_server_file);
+	if(cmd_opt.verbose) {
+	    print_cdn_server(host_list);
+	}
 	nxt = host_list;
     }
     printf("初始化完成\n");
@@ -326,12 +334,12 @@ int is_need_to_remove_train_from_black_list()
     return 0;
 }
 
-int current_train_is_at_black_list(struct train_info *t_info)
+bool current_train_is_at_black_list(struct train_info *t_info)
 {
     if(find_node(black_list, t_info->train_no, find_black_list) == NULL) {
-	return 0;
+	return false;
     }
-    return 1;
+    return true;
 }
 
 
@@ -555,28 +563,28 @@ int perform_request(const char *url, enum request_type type, void *post, struct 
     return 0;
 }
 
-int current_train_has_prefix_ticket(struct train_info *ptrain)
+bool current_train_has_prefix_ticket(struct train_info *ptrain)
 {
-    if(config._prefer_seat_type_all[0] == 0) {
-	return 0;
-    } else if(strstr(config._prefer_seat_type_all, "M") != NULL &&  (ptrain->zy_num[0] != '\0' && strcmp(ptrain->zy_num, "无"))) {
-	return 0;
-    } else if(strstr(config._prefer_seat_type_all, "O") != NULL &&  (ptrain->ze_num[0] != '\0' && strcmp(ptrain->ze_num, "无"))) {
-	return 0;
-    } else if(strstr(config._prefer_seat_type_all, "1") != NULL &&  ptrain->yz_num[0] != '\0') {
-	return 0;
-    } else if(strstr(config._prefer_seat_type_all, "3") != NULL &&  ptrain->yw_num[0] != '\0') {
-	return 0;
-    } else if(strstr(config._prefer_seat_type_all, "4") != NULL &&  ptrain->rw_num[0] != '\0') {
-	return 0;
-    } else if(strstr(config._prefer_seat_type_all, "5") != NULL &&  (ptrain->wz_num[0] != '\0' && strcmp(ptrain->wz_num, "无"))) {
-	return 0;
-    } else if(strstr(config._prefer_seat_type_all, "A") != NULL &&  ptrain->qt_num[0] != '\0') {
-	return 0;
-    } else if(strstr(config._prefer_seat_type_all, "P") != NULL &&  ptrain->swz_num[0] != '\0') {
-	return 0;
+    if(config._prefer_seat_type_all[true] == 0) {
+	return true;
+    } else if(strstr(config._prefer_seat_type_all, "M") != NULL &&  (ptrain->zy_num[true] != '\0' && strcmp(ptrain->zy_num, "无"))) {
+	return true;
+    } else if(strstr(config._prefer_seat_type_all, "O") != NULL &&  (ptrain->ze_num[true] != '\0' && strcmp(ptrain->ze_num, "无"))) {
+	return true;
+    } else if(strstr(config._prefer_seat_type_all, "1") != NULL &&  ptrain->yz_num[true] != '\0') {
+	return true;
+    } else if(strstr(config._prefer_seat_type_all, "3") != NULL &&  ptrain->yw_num[true] != '\0') {
+	return true;
+    } else if(strstr(config._prefer_seat_type_all, "4") != NULL &&  ptrain->rw_num[true] != '\0') {
+	return true;
+    } else if(strstr(config._prefer_seat_type_all, "5") != NULL &&  (ptrain->wz_num[true] != '\0' && strcmp(ptrain->wz_num, "无"))) {
+	return true;
+    } else if(strstr(config._prefer_seat_type_all, "A") != NULL &&  ptrain->qt_num[true] != '\0') {
+	return true;
+    } else if(strstr(config._prefer_seat_type_all, "P") != NULL &&  ptrain->swz_num[true] != '\0') {
+	return true;
     } else {
-	return 1;
+	return false;
     }
 }
 
@@ -589,7 +597,7 @@ int process_prefix_train_no(struct train_info *ptrain)
 	while(pt->train_no) {
 	    if(pt->can_web_buy[0] == 'Y' &&
 		    strcmp(config._prefer_train_no[i], pt->station_train_code) == 0 &&
-		    current_train_has_prefix_ticket(pt) == 0 &&
+		    current_train_has_prefix_ticket(pt) &&
 		    !current_train_is_at_black_list(pt) &&
 		    submit_order_request(pt) == 0) {
 		return 0;
@@ -601,20 +609,20 @@ int process_prefix_train_no(struct train_info *ptrain)
     return 1;
 }
 
-int current_train_is_at_prefix_time(struct train_info *ptrain)
+bool current_train_is_at_prefix_time(struct train_info *ptrain)
 {
     if(config._t_level[0].time_start[0] == 0) {
-	return 0;
+	return true;
     }
     int i = 0;
     while(config._t_level[i].time_start[0] != 0) {
 	if(strcmp(ptrain->start_time, config._t_level[i].time_start) >= 0 && 
 		strcmp(ptrain->start_time, config._t_level[i].time_end) <= 0) {
-	    return 0;
+	    return true;
 	}
 	i++;
     }
-    return 1;
+    return false;
 }
 
 
@@ -627,8 +635,8 @@ int process_prefix_train_type(struct train_info *ptrain)
 	while(pt->train_no) {
 	    if(pt->can_web_buy[0] == 'Y' &&
 		    config._prefer_train_type[i][0] == pt->station_train_code[0] &&
-		    current_train_is_at_prefix_time(pt) == 0 &&
-		    current_train_has_prefix_ticket(pt) == 0 &&
+		    current_train_is_at_prefix_time(pt) &&
+		    current_train_has_prefix_ticket(pt) &&
 		    !current_train_is_at_black_list(pt) &&
 		    submit_order_request(pt) == 0) {
 		return 0;
@@ -646,7 +654,7 @@ int process_not_prefix_train(struct train_info *ptrain)
     while(pt->train_no) {
 	if(pt->can_web_buy[0] == 'Y' &&
 		current_train_is_at_prefix_time(pt) &&
-		current_train_has_prefix_ticket(pt) == 0 &&
+		current_train_has_prefix_ticket(pt) &&
 		!current_train_is_at_black_list(pt) &&
 		submit_order_request(pt) == 0) {
 	    return 0;
@@ -716,12 +724,10 @@ int query_ticket()
 	    cJSON_Delete(root);
 	    continue;
 	}
-	if(!config._queit_mode) {
+	if(!cmd_opt.queit) {
 	    print_train_info(t_info);
 	}
-	//sendmail(&config, t_info->from_station_name, t_info->to_station_name,
-	//	    t_info->start_train_date, t_info->start_time);
-	if(!config._query_only_mode && process_train(t_info) == 0) {
+	if(!cmd_opt.query_only && process_train(t_info) == 0) {
 	    cJSON_Delete(root);
 	    return 0;
 	}
@@ -731,7 +737,7 @@ int query_ticket()
     return 1;
 }
 
-int checkUserIsLogin()
+int check_user_is_login()
 {
     char url[64];
     char param[32];
@@ -1284,7 +1290,7 @@ int submit_order_request(struct train_info *t_info)
     printf("当前车次：%s，乘车日期：%s，出发时间：%s，到达时间：%s，出发站：%s，到达站：%s\n", t_info->station_train_code,
 	    t_info->start_train_date, t_info->start_time, t_info->arrive_time, t_info->from_station_name, t_info->to_station_name);
     printf("开始提交订单请求...\n");
-    if(checkUserIsLogin() != 0 && user_login() != 0) {
+    if(check_user_is_login() != 0 && user_login() != 0) {
 	return 1;
     }
     printf("正在预提交订单请求...\n");
@@ -1389,4 +1395,17 @@ static void sig_handler(int signo)
 	do_cleanup();
 	exit(1);
     }
+}
+
+void print_help()
+{
+    printf("Usage: ./tickethelper [OPTION]\n");
+    printf("Available options are list below:\n");
+    printf("  -c, --config\tspecify configuration file.\n");
+    printf("  -h, --help\tprint this help message and exit.\n");
+    printf("  -q, --queit\tqueit mode, don't output each train information.\n");
+    printf("  -Q, --query-only\tquery only mode, only query ticket information and disable auto order ticket function.\n");
+    printf("  -v, --verbose\toutput more datail information about connection and debug information.\n");
+    printf("  -V, --version\tprint application version and exit.\n");
+    exit(0);
 }

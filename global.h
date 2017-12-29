@@ -1,5 +1,6 @@
 #ifndef GLOBAL_H
 #define GLOBAL_H
+
 struct response_data {
 	char *memory;
 	size_t size;

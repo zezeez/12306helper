@@ -38,7 +38,7 @@
  * Note that this example requires libcurl 7.20.0 or above.
  */
 
-static char payload_text[][512] = {
+static char payload_text[][1024] = {
   "",
   "",
   "Message-ID: <dcd7cb36-11db-487a-9f3a-e652a9458efd@"
@@ -82,7 +82,11 @@ int sendmail(struct user_config *uc, const char *from_station, const char *to_st
   snprintf(payload_text[0], sizeof(payload_text[0]), "From: <%s>\r\n", uc->_mail_username);
   snprintf(payload_text[1], sizeof(payload_text[1]), "To: <%s>\r\n", uc->_mail_username);
   snprintf(payload_text[5], sizeof(payload_text[5]), 
-  "&nbsp;&nbsp;You recieve this email because you use tickethelper to order ticket at <a href=\"https://kyfw.12306.cn\">12306</a>. Congratulations a ticket is ready for you from %s to %s at %s %s, please pay your order at <a href=\"https://kyfw.12306.cn\">12306</a> as soon as possible or your order will be canceled after 30 minutes.<br />&nbsp;&nbsp;Thanks for using tickethelper.\r\n", from_station, to_station, start_date, start_time);
+  "Congratulations a ticket is ready for you from %s to %s at %s %s, please pay for your order at https://kyfw.12306.cn "
+  "as soon as possible or your order would be canceled after 30 minutes.\n.You receiving this email because you recently using "
+  "tickethelper to order ticket,If you didn't use tickethelper before and don't recognize this email, your email password or "
+  "third-party authorization code might has been leak, please update your email password or third-party authorization code immediately.\n"
+  "Thanks for using tickethelper.\r\n", from_station, to_station, start_date, start_time);
 
   upload_ctx.lines_read = 0;
 
@@ -145,7 +149,7 @@ int sendmail(struct user_config *uc, const char *from_station, const char *to_st
     /* Since the traffic will be encrypted, it is very useful to turn on debug
      * information within libcurl to see what is happening during the
      * transfer */
-    curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
+    /*curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);*/
 
     /* Send the message */
     res = curl_easy_perform(curl);

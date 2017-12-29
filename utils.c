@@ -337,9 +337,17 @@ int load_cdn_server(struct curl_slist **cs, const char *path)
 	}
 	p[strlen(p) - 1] = '\0';
 	snprintf(fmt_buff, sizeof(fmt_buff), "kyfw.12306.cn:443:%s:443", p);
-	printf("%s\n", fmt_buff);
 	*cs = curl_slist_append(*cs, fmt_buff);
     }
     fclose(fd);
     return 0;
+}
+
+void print_cdn_server(struct curl_slist *s)
+{
+    struct curl_slist *p = s;
+    while(p) {
+	printf("%s\n", p->data);
+	p = p->next;
+    }
 }

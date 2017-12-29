@@ -4,13 +4,13 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <stdbool.h>
 #include <errno.h>
 #include <pthread.h>
 #include <sys/time.h>
+#include <curl/curl.h>
 #include <time.h>
 #include <signal.h>
-#include <curl/curl.h>
-#include <ncurses.h>
 #include <getopt.h>
 #include "cJSON.h"
 #include "utils.h"
@@ -103,7 +103,10 @@ struct ticket_info {
 };
 
 struct command_line_option {
-    int verbose;
+    char config_file[64];
+    bool queit;
+    bool query_only; 
+    bool verbose;
 };
 
 static CURL *curl;
@@ -126,6 +129,7 @@ static struct option long_options[] = {
     {"queit", no_argument, NULL, 'q'},
     {"query-only", no_argument, NULL, 'Q'},
     {"config", required_argument, NULL, 'c'},
+    {"help", no_argument, NULL, 'h'},
     {0, 0, 0, 0}
 };
 
@@ -142,7 +146,7 @@ int query_ticket();
 int show_varification_code();
 int start_submit_order_request(struct train_info *);
 int get_passenger_tickets_for_auto_submit();
-int checkUserIsLogin();
+int check_user_is_login();
 int get_passenger_dtos(const char *);
 int passenger_initdc();
 int submit_order_request(struct train_info *);
@@ -155,4 +159,5 @@ static void sig_handler(int);
 extern int sendmail(struct user_config *, const char *, const char *,
 	const char *, const char *);
 void print_app_version();
+void print_help();
 #endif

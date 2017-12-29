@@ -38,4 +38,5 @@ int find_and_remove_black_list(void *, void *);
 int trim_space(const char *, char *);
 void *read_file_all(const char *);
 int load_cdn_server(struct curl_slist **, const char *);
+void print_cdn_server(struct curl_slist *);
 #endif

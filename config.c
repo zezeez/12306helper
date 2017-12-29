@@ -1,6 +1,6 @@
 #include "config.h"
 
-int load_config(struct user_config *uc)
+int load_config(struct user_config *uc, const char *config_file)
 {
     FILE *fd;
     char buffer[512];
@@ -9,10 +9,10 @@ int load_config(struct user_config *uc)
 
     uc->_query_ticket_interval = 3000;
     uc->_block_time = 30;
-    if(uc->_config_path[0] == 0) {
+    if(config_file[0] == 0) {
 	strncpy(config_path, "./tickethelper.conf", sizeof(config_path));
     } else {
-	strncpy(config_path, uc->_config_path, sizeof(config_path));
+	strncpy(config_path, config_file, sizeof(config_path));
     }
 
     if((fd = fopen(config_path, "r")) == NULL) {

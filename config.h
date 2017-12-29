@@ -31,12 +31,9 @@ struct user_config {
     char _mail_username[64];
     char _mail_password[64];
     char _mail_server[64];
-    char _config_path[64];
-    int _queit_mode;
-    int _query_only_mode;
 };
 
-int load_config(struct user_config *);
+int load_config(struct user_config *, const char *);
 int parse_config(struct user_config *, const char *);
 int set_config_value(struct user_config *, const char *, const char *);
 void print_config(struct user_config *);
