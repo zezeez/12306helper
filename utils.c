@@ -91,13 +91,6 @@ int load_stations_name(struct common_list *cl)
     FILE *fd;
     char buffer[102400];
     char **s;
-    /*struct station_name *s_name;
-    int size = 64;
-    s_name = (struct station_name *) malloc(size * sizeof(struct station_name));
-    if(s_name == NULL) {
-	perror("malloc: ");
-	return NULL;
-    }*/
     if((fd = fopen("./station_name.txt", "r")) == NULL) {
 	perror("fopen: ");
 	return -1;
@@ -114,22 +107,10 @@ int load_stations_name(struct common_list *cl)
 	char **station;
 	while(s[i]) {
 	    station = split(s[i], '|');
-	    /*if(i >= size - 1) {
-		s_name = (struct station_name *) realloc(s_name, size * sizeof(struct station_name) * 2);
-		if(s_name == NULL) {
-		    perror("realloc: ");
-		    free_ptr_array((void **)s);
-		    return NULL;
-		}
-		size += size;
-	    }
-	    memcpy(s_name + i, station, sizeof(struct station_name));
-	    */
 	    insert_node(cl, (struct station_name *) station, insert_station_name);
 	    free(station);
 	    i++;
 	}
-	//memset(s_name + i, 0, sizeof(struct station_name));
 	return 0;
     } else {
 	return 1;
@@ -232,32 +213,6 @@ int find_and_remove_black_list(void *s, void *d)
     return 1;
 }
 
-/*const char * find_station_name_by_code(struct station_name *name, const char *code, struct common_list *cache)
-{
-    struct station_name *pn = name;
-    while(pn->simple_py) {
-	if(strcmp(pn->code, code) == 0) {
-	    insert(cache, pn, sizeof(struct station_name));
-	    return pn->name;
-	}
-	pn++;
-    }
-    return NULL; 
-}*/
-
-/*const char * find_station_name_at_cache(struct common_list *cache, const char *code)
-{
-    struct common_list *p = cache;
-    while(p) {
-	if(strcmp(((struct station_name *)p->data)->code, code)) {
-	    p = p->next;
-	} else {
-	    return ((struct station_name *)p->data)->name;
-	}
-    }
-    return NULL; 
-}*/
-
 int trim_space(const char *str, char *buffer)
 {
     const char *s_ptr = str, *e_ptr;
@@ -332,7 +287,7 @@ int load_cdn_server(struct curl_slist **cs, const char *path)
 		break;
 	    }
 	}
-	if(*p == '#') {
+	if(*p == '#' || *p == '\n' || *p == '\0') {
 	    continue;
 	}
 	p[strlen(p) - 1] = '\0';

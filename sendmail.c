@@ -83,7 +83,7 @@ int sendmail(struct user_config *uc, const char *from_station, const char *to_st
   snprintf(payload_text[1], sizeof(payload_text[1]), "To: <%s>\r\n", uc->_mail_username);
   snprintf(payload_text[5], sizeof(payload_text[5]), 
   "Congratulations a ticket is ready for you from %s to %s at %s %s, please pay for your order at https://kyfw.12306.cn "
-  "as soon as possible or your order would be canceled after 30 minutes.\n.You receiving this email because you recently using "
+  "as soon as possible or your order would be canceled after 30 minutes.\nYou are receiving this email because you recently using "
   "tickethelper to order ticket,If you didn't use tickethelper before and don't recognize this email, your email password or "
   "third-party authorization code might has been leak, please update your email password or third-party authorization code immediately.\n"
   "Thanks for using tickethelper.\r\n", from_station, to_station, start_date, start_time);

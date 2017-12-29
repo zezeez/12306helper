@@ -102,10 +102,8 @@ int set_config_value(struct user_config *uc, const char *key, const char *value)
     } else if(strcmp(key, "block_time") == 0) {
 	uc->_block_time = (int)strtol(value, NULL, 10);
     } else if(strcmp(key, "prefer_train_type") == 0) {
-	//strcpy(uc->_prefer_train_type, value);
 	set_train_info(*uc->_prefer_train_type, sizeof(*uc->_prefer_train_type), value);
     } else if(strcmp(key, "prefer_train_no") == 0) {
-	//strcpy(uc->_prefer_train_no, value);
 	set_train_info(*uc->_prefer_train_no, sizeof(*uc->_prefer_train_no), value);
     } else if(strcmp(key, "prefer_seat_type") == 0) {
 	strcpy(uc->_prefer_seat_type_all, value);
@@ -141,14 +139,16 @@ int parse_config(struct user_config *uc, const char *buffer)
 	}
     }
     split_ptr = split(p, '=');
-    if(split_ptr[0]) {
-	trim_space(split_ptr[0], key);
+    if(split_ptr) {
+	if(split_ptr[0]) {
+	    trim_space(split_ptr[0], key);
+	}
+	if(split_ptr[1]) {
+	    trim_space(split_ptr[1], value);
+	}
+	free_ptr_array((void **)split_ptr);
+	set_config_value(uc, key, value);
     }
-    if(split_ptr[1]) {
-	trim_space(split_ptr[1], value);
-    }
-    free_ptr_array((void **)split_ptr);
-    set_config_value(uc, key, value);
     return 0;
 }
 
