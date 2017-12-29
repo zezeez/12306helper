@@ -154,6 +154,7 @@ int init_my12306();
 int user_login();
 int init_user_screen();
 int fill_user_config_telecode();
+bool current_config_is_correct();
 extern void *show_varification_code_main(void *);
 static void sig_handler(int);
 extern int sendmail(struct user_config *, const char *, const char *,

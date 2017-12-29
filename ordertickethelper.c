@@ -80,6 +80,8 @@ int init_curl()
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, 15L);
+    curl_easy_setopt(curl, CURLOPT_AUTOREFERER, 1L);
+    curl_easy_setopt(curl, CURLOPT_USERAGENT, "Mozilla/5.0 (X11; Fedora; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/61.0.3163.100 Safari/537.36");
     if(cmd_opt.verbose) {
 	curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
     }
@@ -102,12 +104,18 @@ int do_init()
 
     printf("正在加载站点列表...\n");
     load_stations_name(all_stations);
+
     printf("正在加载配置文件...\n");
     if(load_config(&config, cmd_opt.config_file) < 0) {
 	fprintf(stderr, "load configuration fail, check is tickethelper.conf exist.\n");
 	return -1;
     }
+    if(!current_config_is_correct()) {
+	return -1;
+    }
+
     fill_user_config_telecode();
+
     if(cmd_opt.verbose) {
 	print_config(&config);
     }
@@ -156,6 +164,35 @@ int fill_user_config_telecode()
     }
     strncpy(config._to_station_telecode, ((struct station_name *) ts_code->data)->code, sizeof(config._to_station_telecode));
     return 0;
+}
+
+bool current_config_is_correct()
+{
+    if(config._username[0] == 0) {
+	printf("error: username not set,this field is required.\n");
+	return false;
+    }
+    if(config._password[0] == 0) {
+	printf("error: password not set,this field is required.\n");
+	return false;
+    }
+    if(config._start_tour_date[0] == 0) {
+	printf("error: start_tour_date not set,this field is required.\n");
+	return false;
+    }
+    if(config._from_station_name[0] == 0) {
+	printf("error: from_station_name not set,this field is required.\n");
+	return false;
+    }
+    if(config._to_station_name[0] == 0) {
+	printf("error: to_station_name not set,this field is required.\n");
+	return false;
+    }
+    if(config._passenger_name[0] == 0) {
+	printf("error: passenger_name not set,this field is required.\n");
+	return false;
+    }
+    return true;
 }
 
 int clean_curl()
@@ -535,7 +572,6 @@ int perform_request(const char *url, enum request_type type, void *post, struct 
 {
     chunk.size = 0;
     curl_easy_setopt(curl, CURLOPT_URL, url);
-    curl_easy_setopt(curl, CURLOPT_AUTOREFERER, 1L);
     if(list) {
 	curl_easy_setopt(curl, CURLOPT_CONNECT_TO, list);
     }
@@ -552,7 +588,6 @@ int perform_request(const char *url, enum request_type type, void *post, struct 
 	    fprintf(stderr, "perform_request parameter: undefined request type.\n");
 	    return -1;
     };
-    curl_easy_setopt(curl, CURLOPT_USERAGENT, "Mozilla/5.0 (X11; Fedora; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/61.0.3163.100 Safari/537.36");
 
     res = curl_easy_perform(curl);
     if(res != CURLE_OK) {
@@ -689,7 +724,7 @@ int query_ticket()
 
     snprintf(log_url, sizeof(log_url), "%sleftTicket/log?leftTicketDTO.train_date=%s&leftTicketDTO.from_station=%s&leftTicketDTO.to_station=%s&purpose_codes=ADULT", BASEURL, config._start_tour_date, config._from_station_telecode, config._to_station_telecode);
 
-    snprintf(query_url, sizeof(query_url), "%sleftTicket/query?leftTicketDTO.train_date=%s&leftTicketDTO.from_station=%s&leftTicketDTO.to_station=%s&purpose_codes=ADULT", BASEURL, config._start_tour_date, config._from_station_telecode, config._to_station_telecode);
+    snprintf(query_url, sizeof(query_url), "%sleftTicket/queryO?leftTicketDTO.train_date=%s&leftTicketDTO.from_station=%s&leftTicketDTO.to_station=%s&purpose_codes=ADULT", BASEURL, config._start_tour_date, config._from_station_telecode, config._to_station_telecode);
 
     while(1) {
 	printf("正在查询 %s 从 %s 到 %s 的余票信息...\n", config._start_tour_date, config._from_station_name, config._to_station_name);
@@ -711,7 +746,7 @@ int query_ticket()
 	    }
 	}
 	cJSON *root = cJSON_Parse(chunk.memory);
-	if(root == NULL) {
+	if(cJSON_IsNull(root)) {
 	    nanosleep(&t, NULL);
 	    continue;
 	}

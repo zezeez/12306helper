@@ -8,6 +8,7 @@ int load_config(struct user_config *uc, const char *config_file)
     char config_path[64];
 
     uc->_query_ticket_interval = 3000;
+    uc->_max_queue_count = 30;
     uc->_block_time = 30;
     if(config_file[0] == 0) {
 	strncpy(config_path, "./tickethelper.conf", sizeof(config_path));
