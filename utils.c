@@ -92,7 +92,7 @@ int load_stations_name(struct common_list *cl)
     char buffer[102400];
     char **s;
     if((fd = fopen("./station_name.txt", "r")) == NULL) {
-	perror("fopen: ");
+	fprintf(stderr, "%s: %s\n", "./station_name.txt", strerror(errno));
 	return -1;
     }
     if(fgets(buffer, sizeof(buffer), fd) == NULL) {

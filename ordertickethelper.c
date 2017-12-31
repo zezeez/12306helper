@@ -103,7 +103,10 @@ int do_init()
     init_list(&black_list);
 
     printf("正在加载站点列表...\n");
-    load_stations_name(all_stations);
+    if(load_stations_name(all_stations) != 0) {
+	do_cleanup();
+	exit(1);
+    }
 
     printf("正在加载配置文件...\n");
     if(load_config(&config, cmd_opt.config_file) < 0) {
@@ -115,6 +118,11 @@ int do_init()
     }
 
     fill_user_config_telecode();
+    int i = 0;
+    while(config._passenger_name[i][0]) {
+	config._passenger_count++;
+	i++;
+    }
 
     if(cmd_opt.verbose) {
 	print_config(&config);
@@ -144,7 +152,7 @@ int fill_user_config_telecode()
     if(fs_code == NULL) {
 	fs_code = find_node(all_stations, config._from_station_name, find_station_code);
 	if(fs_code == NULL) {
-	    fprintf(stderr, "No such station: %s, perhaps you need to update station_name.txt", config._from_station_name);
+	    fprintf(stderr, "No such station: %s, perhaps you need to update station_name.txt\n", config._from_station_name);
 	    do_cleanup();
 	    exit(2);
 	}
@@ -156,7 +164,7 @@ int fill_user_config_telecode()
     if(ts_code == NULL) {
 	ts_code = find_node(all_stations, config._to_station_name, find_station_code);
 	if(ts_code == NULL) {
-	    fprintf(stderr, "No such station: %s, perhaps you need to update station_name.txt", config._to_station_name);
+	    fprintf(stderr, "No such station: %s, perhaps you need to update station_name.txt\n", config._to_station_name);
 	    do_cleanup();
 	    exit(2);
 	}
@@ -188,7 +196,7 @@ bool current_config_is_correct()
 	printf("error: to_station_name not set,this field is required.\n");
 	return false;
     }
-    if(config._passenger_name[0] == 0) {
+    if(config._passenger_name[0][0] == 0) {
 	printf("error: passenger_name not set,this field is required.\n");
 	return false;
     }
@@ -1179,10 +1187,18 @@ int get_queue_count(cJSON *json, struct train_info *t_info)
 	return 1;
     }
     printf("当前余票：%s, ", ticket_str->valuestring);
+    long left_ticket = strtol(ticket_str->valuestring, NULL, 10);
+    if(left_ticket < config._passenger_count) {
+	printf("余票不足，将%s加入黑名单%d秒\n", 
+		t_info->station_train_code, config._block_time);
+	add_train_to_black_list(t_info);
+	return 5;
+    }
     if(strcmp(ticket_str->valuestring, "0") == 0) {
 	printf("该数据为缓存，将%s加入黑名单%d秒\n", 
 		t_info->station_train_code, config._block_time);
 	add_train_to_black_list(t_info);
+	return 6;
     }
     cJSON *countT_str = cJSON_GetObjectItem(data, "countT");
     if(!cJSON_IsString(countT_str)) {
@@ -1237,7 +1253,6 @@ int confirm_single_queue(struct train_info *t_info)
 	    tinfo.key_is_change, tinfo.left_ticket, tinfo.train_location,
 	    choose_seats,
 	    tinfo.repeat_submit_token);
-    printf("confirmSingleForQueue param: %s\n", param);
     curl_free(url_encode_passenger);
     curl_free(url_encode_old_passenger);
 
@@ -1301,10 +1316,12 @@ int query_order_wait_time()
     }
     cJSON *query_status = cJSON_GetObjectItem(data, "queryOrderWaitTimeStatus");
     if(cJSON_IsFalse(query_status)) {
+	cJSON_Delete(root);
 	return 2;
     }
     cJSON *waitTime = cJSON_GetObjectItem(data, "waitTime");
     if(!cJSON_IsNumber(waitTime)) {
+	cJSON_Delete(root);
 	return 1;
     }
     cJSON *order_id = cJSON_GetObjectItem(data, "orderId");
@@ -1312,9 +1329,17 @@ int query_order_wait_time()
 	strncpy(tinfo.order_no, order_id->valuestring, sizeof(tinfo.order_no));
     }
     if(waitTime->valueint == -1 || waitTime->valueint == -100) {
+	cJSON_Delete(root);
 	return 0;
     }
-    return 3;
+    if(waitTime->valueint == -2) {
+	cJSON *msg = cJSON_GetObjectItem(data, "msg");
+	if(cJSON_IsString(msg)) {
+	    printf("%s\n", msg->valuestring);
+	}
+    }
+    cJSON_Delete(root);
+    return waitTime->valueint;
 }
 
 int result_order_for_dc_queue(const char *order_no)
@@ -1400,7 +1425,12 @@ int submit_order_request(struct train_info *t_info)
 	}
 	int wait_time;
 	printf("系统出票中，开始等待...\n");
-	while((wait_time = query_order_wait_time()) == 3) {
+	while((wait_time = query_order_wait_time()) != 0) {
+	    if(wait_time == -2) {
+		cJSON_Delete(root);
+		do_cleanup();
+		exit(4);
+	    }
 	    printf("继续等待系统出票...\n");
 	    sleep(3);
 	}

@@ -43,6 +43,7 @@ static char payload_text[][1024] = {
   "",
   "Message-ID: <dcd7cb36-11db-487a-9f3a-e652a9458efd@"
   "rfcpedant.sendmail.org>\r\n",
+  "Content-Type: text/html\r\n",
   "Subject: Tickethelper notification\r\n",
   "\r\n", /* empty line to divide headers from body, see RFC5322 */
   "reverse"
@@ -81,12 +82,13 @@ int sendmail(struct user_config *uc, const char *station_train_code, const char 
 
   snprintf(payload_text[0], sizeof(payload_text[0]), "From: <%s>\r\n", uc->_mail_username);
   snprintf(payload_text[1], sizeof(payload_text[1]), "To: <%s>\r\n", uc->_mail_username);
-  snprintf(payload_text[5], sizeof(payload_text[5]), 
-  "Congratulations a ticket %s is ready for you from %s to %s at %s %s, please pay for your order at https://kyfw.12306.cn "
-  "as soon as possible or your order would be canceled after 30 minutes.\nYou are receiving this email because you recently using "
+  snprintf(payload_text[6], sizeof(payload_text[6]), 
+  "<html><head><style type=\"text/css\">strong {color:green}</style></head><body><p>Congratulations a ticket <strong>%s</strong> is ready for you from <strong>%s</strong> to <strong>%s</strong> at <strong>%s %s</strong>, please pay for your order at <a href=\"https://kyfw.12306.cn\">12306</a> "
+  "as soon as possible or your order would be canceled after 30 minutes.</p>"
+  "<p>You are receiving this email because you recently using "
   "tickethelper to order ticket,If you didn't use tickethelper before and don't recognize this email, your email password or "
-  "third-party authorization code might has been leak, please update your email password or third-party authorization code immediately.\n"
-  "Thanks for using tickethelper.\r\n", station_train_code, from_station, to_station, start_date, start_time);
+  "third-party authorization code might has been leak, please update your email password or third-party authorization code immediately.</p>"
+  "<p>Thanks for using tickethelper.</p></body></html>\r\n", station_train_code, from_station, to_station, start_date, start_time);
 
   upload_ctx.lines_read = 0;
 

@@ -1,11 +1,12 @@
 # 12306ticket
   <p>&nbsp;&nbsp;This application is develop for linux platform and it is intend to run with gtk3, it also depend on libcurl which is a client url library whiten by C.Please check your platform dependencies before compile this code or run this application.Remeber modify <em>tickethelper.conf</em> to your own setting.</p>
-  For installing gtk3, on Fedora:<pre><i>sudo dnf install gtk3 gtk3-devel</i></pre>
-  On Debian or Ubuntu:<pre><i>sudo apt-get install libgtk-3-dev</i></pre>
-  On Arch Linux:<pre><i>sudo pacman -Sy gtk3</i></pre>
-  On OpenSUSE:<pre><i>sudo zypper install gtk3 gtk3-dev</i></pre>
-  On Linux Mint:<pre><i>gem install gtk3 gtk3-dev</i></pre>
+  For installing gtk3, on Fedora:<pre>sudo dnf install gtk3 gtk3-devel</pre>
+  On Debian or Ubuntu:<pre>sudo apt-get install libgtk-3-dev</pre>
+  On Arch Linux:<pre>sudo pacman -Sy gtk3</pre>
+  On OpenSUSE:<pre>sudo zypper install gtk3 gtk3-dev</pre>
+  On Linux Mint:<pre>gem install gtk3 gtk3-dev</pre>
   <br />
+  <h3>How to compile and run?</h3>
   <p>Copy this repository to local</p>
   <pre>git clone git@github.com:liujianjia/12306ticket.git</pre>
   <p>or download zip package and extract</p>

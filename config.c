@@ -17,7 +17,7 @@ int load_config(struct user_config *uc, const char *config_file)
     }
 
     if((fd = fopen(config_path, "r")) == NULL) {
-	perror("fopen: ");
+	fprintf(stderr, "%s: %s\n", config_path, strerror(errno));
 	return -1;
     }
     while(fgets(buffer, sizeof(buffer), fd)) {

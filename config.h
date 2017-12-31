@@ -29,6 +29,7 @@ struct user_config {
     char _use_cdn_server_file[64];
     char _passenger_name[8][16];
     char _choose_seats[8][8];
+    long _passenger_count;
     char _mail_username[64];
     char _mail_password[64];
     char _mail_server[64];
