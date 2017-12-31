@@ -98,8 +98,8 @@ struct ticket_info {
     char seat_type[4];
     char train_location[4];
     char order_no[32];
-    char passenger_tickets[64];
-    char old_passenger[64];
+    char passenger_tickets[512];
+    char old_passenger[512];
 };
 
 struct command_line_option {
@@ -118,7 +118,7 @@ static struct common_list *all_stations;
 static struct common_list *cached_stations;
 static struct common_list *black_list;
 static struct passenger_info pinfo[16];
-static struct passenger_info cur_passenger;
+static struct passenger_info cur_passenger[8];
 static struct ticket_info tinfo;
 static struct user_config config;
 static struct command_line_option cmd_opt;
@@ -158,7 +158,7 @@ bool current_config_is_correct();
 extern void *show_varification_code_main(void *);
 static void sig_handler(int);
 extern int sendmail(struct user_config *, const char *, const char *,
-	const char *, const char *);
+	const char *, const char *, const char *);
 void print_app_version();
 void print_help();
 #endif

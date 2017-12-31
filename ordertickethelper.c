@@ -438,14 +438,13 @@ int get_passenger_dtos(const char *repeat_token)
 	return -1;
     }
 
-    cJSON *root, *status, *httpstatus, *data;
+    cJSON *root, *status, *data;
     root = cJSON_Parse(chunk.memory);
     if(!root) {
 	return 1;
     }
     status = cJSON_GetObjectItem(root, "status");
-    httpstatus = cJSON_GetObjectItem(root, "httpstatus");
-    if(!cJSON_IsTrue(status) || !cJSON_IsNumber(httpstatus) || httpstatus->valueint != 200) {
+    if(!cJSON_IsTrue(status)) {
 	cJSON_Delete(root);
 	return 1;
     }
@@ -782,7 +781,6 @@ int check_user_is_login()
     }
 
     cJSON *status, *httpstatus, *data, *flag, *root;
-    //printf("checkUser: %s\n", chunk.memory);
 
     root = cJSON_Parse(chunk.memory);
     if(cJSON_IsNull(root)) {
@@ -810,13 +808,10 @@ int init_my12306()
     char url[128];
     char param[64];
 
-    //snprintf(url, sizeof(url), "%s", BASEURL"login/userLogin");
-    //perform_request(url, POST, (void *)"_json_att=", nxt);
     snprintf(url, sizeof(url), BASEURL"passport?redirect=/otn/login/userLogin");
     perform_request(url, GET, NULL, nxt);
     snprintf(url, sizeof(url), "https://kyfw.12306.cn/passport/web/auth/uamtk");
     perform_request(url, POST, (void *)"appid=otn", nxt);
-    //printf("umatk: %s\n", chunk.memory);
 
     cJSON *root = cJSON_Parse(chunk.memory);
     if(cJSON_IsNull(root)) {
@@ -831,7 +826,6 @@ int init_my12306()
 	    snprintf(url, sizeof(url), "%s", BASEURL"uamauthclient");
 	    snprintf(param, sizeof(param), "%s%s", "tk=", newapptk->valuestring);
 	    perform_request(url, POST, param, nxt);
-	    //printf("uamauthclient: %s\n", chunk.memory);
 	}
     } else {
 	return 1;
@@ -892,38 +886,58 @@ int get_passenger_tickets_for_submit(cJSON *root)
 	}
     }
 
-    if(tinfo.seat_type[0] == 0 && strstr(config._prefer_seat_type_all, "5") != NULL && 
+    if(tinfo.seat_type[0] == 0 && 
+	    strstr(config._prefer_seat_type_all, "5") != NULL && 
 	    cJSON_IsString(st[0])) {
 	strncpy(tinfo.seat_type, st[0]->valuestring, sizeof(tinfo.seat_type));
     } else if(tinfo.seat_type[0] == 0) {
 	return 2;
     }
-    int num = snprintf(tinfo.passenger_tickets, sizeof(tinfo.passenger_tickets), "%s,0,1,%s,1,%s,%s,N", tinfo.seat_type, cur_passenger.passenger_name, 
-	    	cur_passenger.passenger_id_no, cur_passenger.mobile_no);
-    return num;
+    char *pi = tinfo.passenger_tickets;
+    i = 0;
+    while(cur_passenger[i].code[0]) {
+	if(i) {
+	    *pi = '_';
+	    pi++;
+	}
+    	snprintf(pi, sizeof(tinfo.passenger_tickets) - (pi - tinfo.passenger_tickets), "%s,0,1,%s,1,%s,%s,N", 
+		tinfo.seat_type, cur_passenger[i].passenger_name, 
+	    	cur_passenger[i].passenger_id_no, cur_passenger[i].mobile_no);
+	pi += strlen(pi);
+	i++;
+    }
+    return 0;
 }
 
 int get_old_passenger_for_submit()
 {
-    int num = snprintf(tinfo.old_passenger, sizeof(tinfo.old_passenger), "%s,1,%s,1_", cur_passenger.passenger_name, cur_passenger.passenger_id_no);
-    return num;
+    char *pi = tinfo.old_passenger;
+    int i = 0;
+    while(cur_passenger[i].code[0]) {
+	snprintf(pi, sizeof(tinfo.old_passenger) - (pi - tinfo.old_passenger), "%s,1,%s,1_", 
+		cur_passenger[i].passenger_name, cur_passenger[i].passenger_id_no);
+	pi += strlen(pi);
+	i++;
+    }
+    return 0;
 }
 
-int set_cur_passenger()
+bool set_cur_passenger()
 {
-    int i = 0;
+    int i = 0, j, k = 0;
     while(pinfo[i].code[0]) {
-	if(strcmp(pinfo[i].passenger_name, config._passenger_name) == 0) {
-	    break;
+	j = 0;
+	while(config._passenger_name[j][0]) {
+	    if(strcmp(pinfo[i].passenger_name, config._passenger_name[j]) == 0) {
+		memcpy(cur_passenger + k, pinfo + i, sizeof(struct passenger_info));
+		k++;
+	    }
+	    j++;
 	}
 	i++;
     }
-    if(pinfo[i].code[0]) {
-	memcpy(&cur_passenger, pinfo + i, sizeof(struct passenger_info));
-    } else {
-	return 1;
-    }
-    return 0;
+    memset(cur_passenger + k, 0, sizeof(struct passenger_info));
+    return cur_passenger[0].code[0] ? true : false;
 }
 
 int start_submit_order_request(struct train_info *t_info)
@@ -944,7 +958,6 @@ int start_submit_order_request(struct train_info *t_info)
     if(perform_request(url, POST, param, nxt) < 0) {
 	return -1;
     }
-    //printf("result: %s\n", chunk.memory);
     cJSON *root = cJSON_Parse(chunk.memory);
     if(cJSON_IsNull(root)) {
 	return 1;
@@ -969,6 +982,7 @@ int check_order_info(cJSON *json)
 	printf("No such seat type: %s\n", config._prefer_seat_type_all);
 	return 3;
     }
+
     char *url_encode_passenger = curl_easy_escape(curl, tinfo.passenger_tickets, strlen(tinfo.passenger_tickets));
     get_old_passenger_for_submit();
     char *url_encode_old_passenger = curl_easy_escape(curl, tinfo.old_passenger, strlen(tinfo.old_passenger));
@@ -977,13 +991,9 @@ int check_order_info(cJSON *json)
     curl_free(url_encode_passenger);
     curl_free(url_encode_old_passenger);
 
-    //printf("checkOrderInfo param: %s\n", param);
-    //printf("passenger: %s old_passenger: %s\n", tinfo.passenger_tickets, tinfo.old_passenger);
-
     if(perform_request(url, POST, param, nxt) < 0) {
 	return -1;
     }
-    //printf("checkOrderInfo result: %s\n", chunk.memory);
 
     cJSON *root = cJSON_Parse(chunk.memory);
     if(cJSON_IsNull(root)) {
@@ -1101,14 +1111,17 @@ int get_train_date_format(cJSON *root, char *tf, size_t size)
     if(strftime(buffer, sizeof(buffer), "%a %b %d %Y %T", &time_format) <= 0) {
 	return -1;
     }
-    int bf_len = strlen(buffer);
+    size_t bf_len = strlen(buffer);
     char *pbf = buffer + bf_len;
     if(snprintf(pbf, sizeof(buffer) - bf_len, " GMT%s%02d%02d (CST)", tz_hh > 0 ? "+" : "-", tz_hh, tz_mm) <= 0) {
 	return -1;
     }
     bf_len = strlen(buffer);
-    int i, j;
+    size_t i, j;
     for(i = 0, j = 0; i < bf_len; i++, j++) {
+	if(j >= size) {
+	    break;
+	}
 	if(buffer[i] == ' ') {
 	    tf[j] = '+';
 	} else if(buffer[i] == ':') {
@@ -1143,11 +1156,9 @@ int get_queue_count(cJSON *json, struct train_info *t_info)
 	    t_info->from_station_telecode, t_info->to_station_telecode, 
 	    tinfo.yp_info_detail, tinfo.train_location, 
 	    tinfo.repeat_submit_token);
-    //printf("queue param: %s %s\n", date_format, param);
     if(perform_request(url, POST, param, nxt) < 0) {
 	return -1;
     }
-    //printf("queue result: %s\n", chunk.memory);
     cJSON *root = cJSON_Parse(chunk.memory);
     if(cJSON_IsNull(root)) {
 	return 1;
@@ -1202,24 +1213,37 @@ int confirm_single_queue(struct train_info *t_info)
 {
     char url[128];
     char param[1024];
+    char choose_seats[64];
+    int i = 0;
+    memset(choose_seats, 0, sizeof(choose_seats));
+
+    char *cs = choose_seats;
+    while(config._choose_seats[i][0]) {
+	snprintf(cs, sizeof(choose_seats) - (cs - choose_seats), "%s",
+		config._choose_seats[i]);
+	cs += strlen(cs);
+	i++;
+    }
 
     snprintf(url, sizeof(url), BASEURL"confirmPassenger/confirmSingleForQueue");
-    //snprintf(url, sizeof(url), "%s", BASEURL"confirmPassenger/confirmSingle");
 
     char *url_encode_passenger = curl_easy_escape(curl, tinfo.passenger_tickets, strlen(tinfo.passenger_tickets));
     char *url_encode_old_passenger = curl_easy_escape(curl, tinfo.old_passenger, strlen(tinfo.old_passenger));
 
-    snprintf(param, sizeof(param), "passengerTicketStr=%s&oldPassengerStr=%s&randCode=&purpose_codes=00&key_check_isChange=%s&leftTicketStr=%s&train_location=%s&choose_seats=&seatDetailType=000&whatsSelect=1&roomType=00&dwAll=N&_json_att=&REPEAT_SUBMIT_TOKEN=%s", url_encode_passenger, url_encode_old_passenger,
+    snprintf(param, sizeof(param), "passengerTicketStr=%s&oldPassengerStr=%s&randCode=&purpose_codes=00&key_check_isChange=%s&"
+	    "leftTicketStr=%s&train_location=%s&choose_seats=%s&seatDetailType=000&whatsSelect=1&roomType=00&dwAll=N&"
+	    "_json_att=&REPEAT_SUBMIT_TOKEN=%s", 
+	    url_encode_passenger, url_encode_old_passenger,
 	    tinfo.key_is_change, tinfo.left_ticket, tinfo.train_location,
+	    choose_seats,
 	    tinfo.repeat_submit_token);
+    printf("confirmSingleForQueue param: %s\n", param);
     curl_free(url_encode_passenger);
     curl_free(url_encode_old_passenger);
-    //printf("confirmPassengerSingleForQueue param: %s\n", param);
 
     if(perform_request(url, POST, param, nxt) < 0) {
 	return -1;
     }
-    //printf("confirmPassengerSingleForQueue result: %s\n", chunk.memory);
     cJSON *root = cJSON_Parse(chunk.memory);
     if(cJSON_IsNull(root)) {
 	return 1;
@@ -1266,7 +1290,6 @@ int query_order_wait_time()
     if(perform_request(url, GET, NULL, nxt) < 0) {
 	return -1;
     }
-    //printf("queryOrderWaitTime result: %s\n", chunk.memory);
     cJSON *root = cJSON_Parse(chunk.memory);
     if(cJSON_IsNull(root)) {
 	return 1;
@@ -1326,12 +1349,20 @@ int submit_order_request(struct train_info *t_info)
 	if(cJSON_IsNull(root)) {
 	    return 1;
 	}
+	if(get_left_ticket_str(root) != 0) {
+	    printf("获取预提交令牌环失败\n");
+	    return 1;
+	}
 	printf("正在获取乘车人信息...\n");
 	get_passenger_dtos(tinfo.repeat_submit_token);
-	if(set_cur_passenger() != 0) {
-	    printf("No such passenger: %s\n", config._passenger_name);
-	    printf("Avalible passsengers are list below:\n");
+	if(!set_cur_passenger()) {
 	    int i = 0;
+	    while(config._passenger_name[i][0]) {
+		printf("No such passenger: %s\n", config._passenger_name[i]);
+		i++;
+	    }
+	    printf("Avalible passsengers are list below:\n");
+	    i = 0;
 	    while(pinfo[i].code[0]) {
 		printf("%s\n", pinfo[i].passenger_name);
 		i++;
@@ -1339,7 +1370,6 @@ int submit_order_request(struct train_info *t_info)
 	    do_cleanup();
 	    exit(3);
 	}
-	get_left_ticket_str(root);
 
 	printf("正在检查预提交订单...\n");
 	int ret = check_order_info(root);
@@ -1352,7 +1382,7 @@ int submit_order_request(struct train_info *t_info)
 		return 1;
 	    }
 	} else if(ret == 3) {
-	    printf("订单确认失败，将%s加入黑名单%d秒\n", t_info->station_train_code, config._block_time);
+	    printf("将%s加入黑名单%d秒\n", t_info->station_train_code, config._block_time);
 	    add_train_to_black_list(t_info);
 	    return 1;
 	} else {
@@ -1380,7 +1410,7 @@ int submit_order_request(struct train_info *t_info)
 	}
 	printf("系统出票成功，预订已完成，请在30分钟内支付以完成订单\n");
 	if(config._mail_username[0] != 0 && config._mail_password[0] != 0 && config._mail_server[0] != 0) {
-	    if(sendmail(&config, ptrain->from_station_name, ptrain->to_station_name,
+	    if(sendmail(&config, ptrain->station_train_code, ptrain->from_station_name, ptrain->to_station_name,
 			ptrain->start_train_date, ptrain->start_time) == CURLE_OK) {
 		printf("email has been send.\n");
 	    } else {

@@ -71,8 +71,8 @@ static size_t payload_source(void *ptr, size_t size, size_t nmemb, void *userp)
   return len;
 }
 
-int sendmail(struct user_config *uc, const char *from_station, const char *to_station,
-	const char *start_date, const char *start_time)
+int sendmail(struct user_config *uc, const char *station_train_code, const char *from_station, 
+	const char *to_station, const char *start_date, const char *start_time)
 {
   CURL *curl;
   CURLcode res = CURLE_OK;
@@ -82,11 +82,11 @@ int sendmail(struct user_config *uc, const char *from_station, const char *to_st
   snprintf(payload_text[0], sizeof(payload_text[0]), "From: <%s>\r\n", uc->_mail_username);
   snprintf(payload_text[1], sizeof(payload_text[1]), "To: <%s>\r\n", uc->_mail_username);
   snprintf(payload_text[5], sizeof(payload_text[5]), 
-  "Congratulations a ticket is ready for you from %s to %s at %s %s, please pay for your order at https://kyfw.12306.cn "
+  "Congratulations a ticket %s is ready for you from %s to %s at %s %s, please pay for your order at https://kyfw.12306.cn "
   "as soon as possible or your order would be canceled after 30 minutes.\nYou are receiving this email because you recently using "
   "tickethelper to order ticket,If you didn't use tickethelper before and don't recognize this email, your email password or "
   "third-party authorization code might has been leak, please update your email password or third-party authorization code immediately.\n"
-  "Thanks for using tickethelper.\r\n", from_station, to_station, start_date, start_time);
+  "Thanks for using tickethelper.\r\n", station_train_code, from_station, to_station, start_date, start_time);
 
   upload_ctx.lines_read = 0;
 

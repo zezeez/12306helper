@@ -27,7 +27,8 @@ struct user_config {
     char _prefer_seat_type[16][8];
     char _prefer_seat_type_all[32];
     char _use_cdn_server_file[64];
-    char _passenger_name[16];
+    char _passenger_name[8][16];
+    char _choose_seats[8][8];
     char _mail_username[64];
     char _mail_password[64];
     char _mail_server[64];
@@ -35,6 +36,6 @@ struct user_config {
 
 int load_config(struct user_config *, const char *);
 int parse_config(struct user_config *, const char *);
-int set_config_value(struct user_config *, const char *, const char *);
+int set_config_info(struct user_config *, const char *, const char *);
 void print_config(struct user_config *);
 #endif
