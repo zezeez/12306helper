@@ -933,11 +933,11 @@ int get_old_passenger_for_submit()
 bool set_cur_passenger()
 {
     int i = 0, j, k = 0;
-    while(pinfo[i].code[0]) {
+    while(config._passenger_name[i][0]) {
 	j = 0;
-	while(config._passenger_name[j][0]) {
-	    if(strcmp(pinfo[i].passenger_name, config._passenger_name[j]) == 0) {
-		memcpy(cur_passenger + k, pinfo + i, sizeof(struct passenger_info));
+	while(pinfo[j].code[0]) {
+	    if(strcmp(pinfo[j].passenger_name, config._passenger_name[i]) == 0) {
+		memcpy(cur_passenger + k, pinfo + j, sizeof(struct passenger_info));
 		k++;
 	    }
 	    j++;
@@ -1173,8 +1173,20 @@ int get_queue_count(cJSON *json, struct train_info *t_info)
     }
     cJSON *status = cJSON_GetObjectItem(root, "status");
     if(!cJSON_IsTrue(status)) {
+	cJSON *msg_arr = cJSON_GetObjectItem(root, "messages");
+	if(!cJSON_IsNull(msg_arr)) {
+	    cJSON *msg = cJSON_GetArrayItem(msg_arr, 0);
+	    if(cJSON_IsString(msg)) {
+		printf("%s\n", msg->valuestring);
+	    }
+	}
+	cJSON *url = cJSON_GetObjectItem(root, "url");
+	if(!cJSON_IsNull(url) && strcmp(url->valuestring, "/leftTicket/init") == 0) {
+	    cJSON_Delete(root);
+	    return 7;
+	}
 	cJSON_Delete(root);
-	return 1;
+	return 8;
     }
     cJSON *data = cJSON_GetObjectItem(root, "data");
     if(cJSON_IsNull(data)) {
@@ -1414,9 +1426,9 @@ int submit_order_request(struct train_info *t_info)
 	    return 1;
 	}
 	printf("正在获取排队人数...\n");
-	if(get_queue_count(root, ptrain) != 0) {
+	if((ret = get_queue_count(root, ptrain)) != 0) {
 	    cJSON_Delete(root);
-	    return 1;
+	    return ret;
 	}
 	printf("正在确认订单请求...\n");
 	if(confirm_single_queue(ptrain) != 0) {
