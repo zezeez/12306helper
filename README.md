@@ -8,14 +8,14 @@
   <br />
   <h3>How to compile and run?</h3>
   <p>Copy this repository to local</p>
-  <pre>git clone git@github.com:liujianjia/12306ticket.git</pre>
-  <p>or download zip package and extract</p>
+  <pre>git clone https://github.com/liujianjia/12306ticket.git</pre>
+  <p>or download zip package and extract it</p>
   <p>Enter project directory</p>
   <pre>cd 12306ticket</pre>
   <p>Build project</p>
   <pre>make</pre>
-  <p>If everything is ok, there is an executable file which name is <em>tickethelper</em><p>
-  <p>Use your favorite editor modify <em>tickethelper.conf</em> to your own setting, such as</p>
+  <p>If everything is ok, there is an executable file which name is <em>tickethelper</em> generated<p>
+  <p>Use your favorite text editor modify <em>tickethelper.conf</em> to your own setting, such as</p>
   <pre>vim tickethelper.conf</pre>
   <p>Then start application, good luck!</p>
   <pre>./tickethelper</pre>
@@ -24,6 +24,8 @@
   <pre>
   -c, --config
     specify configuration file.<br />
+  -h, --help
+    print this message and exit.<br />
   -q, --queit
     queit mode, don't output each train information.<br />
   -Q, --query-only
