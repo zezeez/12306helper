@@ -1,4 +1,4 @@
-CFLAGS = -Wall -g
+CFLAGS = -Wall -g -fstack-protector-strong 
 LFLAGS = -lcurl
 DFLAGS = 
 tickethelper: ordertickethelper.c utils.c cJSON.c varification.c config.c sendmail.c

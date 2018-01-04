@@ -19,7 +19,7 @@
 #include "common_list.h"
 
 #define USE_COOKIE 1
-#define TARGETDOMAIN "https://kyfw.12306.cn"
+#define TARGETDOMAIN "https://kyfw.12306.cn/"
 #define BASEURL "https://kyfw.12306.cn/otn/"
 #define APPVERSION "0.0.1.0"
 
@@ -147,6 +147,7 @@ int show_varification_code();
 int start_submit_order_request(struct train_info *);
 int get_passenger_tickets_for_auto_submit();
 int check_user_is_login();
+int check_user();
 int get_passenger_dtos(const char *);
 int passenger_initdc();
 int submit_order_request(struct train_info *);

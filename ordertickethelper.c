@@ -51,7 +51,10 @@ int main(int argc, char *argv[])
 
     if(!cmd_opt.query_only && check_user_is_login() != 0) {
 	printf("当前用户未登陆，开始登陆...\n");
-	user_login();
+	if(user_login() != 0) {
+	    do_cleanup();
+	    exit(1);
+	}
     }
     query_ticket();
 
@@ -731,7 +734,7 @@ int query_ticket()
 
     snprintf(log_url, sizeof(log_url), "%sleftTicket/log?leftTicketDTO.train_date=%s&leftTicketDTO.from_station=%s&leftTicketDTO.to_station=%s&purpose_codes=ADULT", BASEURL, config._start_tour_date, config._from_station_telecode, config._to_station_telecode);
 
-    snprintf(query_url, sizeof(query_url), "%sleftTicket/queryO?leftTicketDTO.train_date=%s&leftTicketDTO.from_station=%s&leftTicketDTO.to_station=%s&purpose_codes=ADULT", BASEURL, config._start_tour_date, config._from_station_telecode, config._to_station_telecode);
+    snprintf(query_url, sizeof(query_url), "%sleftTicket/queryA?leftTicketDTO.train_date=%s&leftTicketDTO.from_station=%s&leftTicketDTO.to_station=%s&purpose_codes=ADULT", BASEURL, config._start_tour_date, config._from_station_telecode, config._to_station_telecode);
 
     while(1) {
 	printf("正在查询 %s 从 %s 到 %s 的余票信息...\n", config._start_tour_date, config._from_station_name, config._to_station_name);
@@ -781,6 +784,37 @@ int check_user_is_login()
     char url[64];
     char param[32];
 
+    snprintf(url, sizeof(url), TARGETDOMAIN"passport/web/auth/uamtk");
+    snprintf(param, sizeof(param), "appid=otn");
+
+    if(perform_request(url, POST, (void *)param, nxt) < 0) {
+	return -1;
+    }
+
+    cJSON *root = cJSON_Parse(chunk.memory);
+    if(cJSON_IsNull(root)) {
+	return 1;
+    }
+
+    cJSON *result_code = cJSON_GetObjectItem(root, "result_code");
+    if(cJSON_IsNumber(result_code) && result_code->valueint == 0) {
+	cJSON_Delete(root);
+	return 0;
+    } else {
+	cJSON *msg = cJSON_GetObjectItem(root, "result_message");
+	if(cJSON_IsString(msg)) {
+	    printf("notice: %s\n", msg->valuestring);
+	}
+    }
+    cJSON_Delete(root);
+    return 1;
+}
+
+int check_user()
+{
+    char url[64];
+    char param[32];
+
     snprintf(url, sizeof(url), BASEURL"login/checkUser");
     snprintf(param, sizeof(param), "_json_att=");
 
@@ -788,7 +822,7 @@ int check_user_is_login()
 	return -1;
     }
 
-    cJSON *status, *httpstatus, *data, *flag, *root;
+    cJSON *status, *data, *flag, *root;
 
     root = cJSON_Parse(chunk.memory);
     if(cJSON_IsNull(root)) {
@@ -796,18 +830,20 @@ int check_user_is_login()
     }
 
     status = cJSON_GetObjectItem(root, "status");
-    httpstatus = cJSON_GetObjectItem(root, "httpstatus");
-    if(cJSON_IsTrue(status) && cJSON_IsNumber(httpstatus) && httpstatus->valueint == 200) {
+    if(cJSON_IsTrue(status)) {
 	data = cJSON_GetObjectItem(root, "data");
 	if(!cJSON_IsNull(data)) {
 	    flag = cJSON_GetObjectItem(data, "flag");
 	    if(cJSON_IsTrue(flag)) {
+		cJSON_Delete(root);
 		return 0;
 	    } else {
+		cJSON_Delete(root);
 		return 1;
 	    }
 	}
     }
+    cJSON_Delete(root);
     return -1;
 }
 
@@ -836,11 +872,13 @@ int init_my12306()
 	    perform_request(url, POST, param, nxt);
 	}
     } else {
+	cJSON_Delete(root);
 	return 1;
     }
     snprintf(url, sizeof(url), "%s", BASEURL"index/initMy12306");
     perform_request(url, GET, NULL, nxt);
 
+    cJSON_Delete(root);
     return 0;
 }
 
@@ -957,11 +995,13 @@ int start_submit_order_request(struct train_info *t_info)
     time(&now);
     ts = localtime(&now);
     char *p_stdate = t_info->start_train_date;
+    char date_format[16];
+    strftime(date_format, sizeof(date_format), "%Y-%m-%d", ts);
 
     snprintf(url, sizeof(url), BASEURL"leftTicket/submitOrderRequest");
-    snprintf(param, sizeof(param), "secretStr=%s&train_date=%c%c%c%c-%c%c-%c%c&back_train_date=%d-%d-%d&tour_flag=dc&purpose_codes=ADULT&query_from_station_name=%s&query_to_station_name=%s&undefined", t_info->secretStr, 
+    snprintf(param, sizeof(param), "secretStr=%s&train_date=%c%c%c%c-%c%c-%c%c&back_train_date=%s&tour_flag=dc&purpose_codes=ADULT&query_from_station_name=%s&query_to_station_name=%s&undefined", t_info->secretStr, 
 	    *p_stdate, *(p_stdate + 1), *(p_stdate + 2), *(p_stdate + 3), *(p_stdate + 4), *(p_stdate + 5), *(p_stdate + 6), *(p_stdate + 7),
-	    ts->tm_year + 1900, ts->tm_mon + 1, ts->tm_mday, config._from_station_name, config._to_station_name);
+	    date_format, config._from_station_name, config._to_station_name);
 
     if(perform_request(url, POST, param, nxt) < 0) {
 	return -1;
@@ -972,10 +1012,28 @@ int start_submit_order_request(struct train_info *t_info)
     }
     cJSON *status = cJSON_GetObjectItem(root, "status");
     if(cJSON_IsTrue(status)) {
+	cJSON_Delete(root);
 	return 0;
     } else {
-	return 1;
+	cJSON *msg_array = cJSON_GetObjectItem(root, "messages");
+	if(!cJSON_IsNull(msg_array)) {
+	    int asize = cJSON_GetArraySize(msg_array);
+	    int i;
+	    for(i = 0; i < asize; i++) {
+		cJSON *msg = cJSON_GetArrayItem(msg_array, i);
+		if(cJSON_IsString(msg)) {
+		    printf("error: %s\n", msg->valuestring);
+		    if(strstr(msg->valuestring, "您还有未处理的订单")) {
+			cJSON_Delete(root);
+			do_cleanup();
+			exit(5);
+		    }
+		}
+	    }
+	}
     }
+    cJSON_Delete(root);
+    return 1;
 }
 
 
@@ -994,7 +1052,7 @@ int check_order_info(cJSON *json)
     char *url_encode_passenger = curl_easy_escape(curl, tinfo.passenger_tickets, strlen(tinfo.passenger_tickets));
     get_old_passenger_for_submit();
     char *url_encode_old_passenger = curl_easy_escape(curl, tinfo.old_passenger, strlen(tinfo.old_passenger));
-    snprintf(param, sizeof(param), "cancel_flag=2&bed_level_order_num=000000000000000000000000000000&passengerTicketStr=%s&oldPassengerStr=%s&tour_flag=dc&whatsSelect=1&randCode=&_json_att=&REPEAT_SUBMIT_TOKEN=%s", url_encode_passenger, url_encode_old_passenger, tinfo.repeat_submit_token);
+    snprintf(param, sizeof(param), "cancel_flag=2&bed_level_order_num=000000000000000000000000000000&passengerTicketStr=%s&oldPassengerStr=%s&tour_flag=dc&randCode=&whatsSelect=1&_json_att=&REPEAT_SUBMIT_TOKEN=%s", url_encode_passenger, url_encode_old_passenger, tinfo.repeat_submit_token);
 
     curl_free(url_encode_passenger);
     curl_free(url_encode_old_passenger);
@@ -1107,7 +1165,7 @@ int get_train_date_format(cJSON *root, char *tf, size_t size)
     if(cJSON_IsNumber(seconds)) {
 	time_format.tm_sec = seconds->valueint;
     }
-    int time_zone, tz_hh, tz_mm;
+    int time_zone, tz_hh = 0, tz_mm = 0;
     timezoneOffset = cJSON_GetObjectItem(train_date, "timezoneOffset");
     if(cJSON_IsNumber(timezoneOffset)) {
 	time_zone = timezoneOffset->valueint;
@@ -1310,7 +1368,7 @@ int query_order_wait_time()
 
     time(&tvnow);
     srand(tvnow);
-    snprintf(time_num, sizeof(time_num), "%ld%ld", tvnow, random() % 1000);
+    snprintf(time_num, sizeof(time_num), "%ld%d", tvnow, rand() % 1000);
 
     snprintf(url, sizeof(url), "%s?random=%s&tourFlag=dc&_json_att=&REPEAT_SUBMIT_TOKEN=%s", BASEURL"confirmPassenger/queryOrderWaitTime", time_num, tinfo.repeat_submit_token); 
 
@@ -1375,8 +1433,11 @@ int submit_order_request(struct train_info *t_info)
     printf("当前车次：%s，乘车日期：%s，出发时间：%s，到达时间：%s，出发站：%s，到达站：%s\n", t_info->station_train_code,
 	    t_info->start_train_date, t_info->start_time, t_info->arrive_time, t_info->from_station_name, t_info->to_station_name);
     printf("开始提交订单请求...\n");
-    if(check_user_is_login() != 0 && user_login() != 0) {
-	return 1;
+    if(check_user() != 0) {
+	printf("当前用户未登陆，开始登陆...\n");
+	if(user_login() != 0) {
+	    return 1;
+	}
     }
     printf("正在预提交订单请求...\n");
     if(start_submit_order_request(ptrain) == 0) {
