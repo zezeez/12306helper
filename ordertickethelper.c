@@ -373,7 +373,7 @@ int is_need_to_remove_train_from_black_list()
 
     while(p) {
 	if(tvnow >= ((struct train_black_list *) p->data)->block_time_end) {
-	    printf("remove %s from black list\n", ((struct train_black_list *) p->data)->train_no);
+	    //printf("remove %s from black list\n", ((struct train_black_list *) p->data)->train_no);
 	    remove_train_from_black_list(((struct train_black_list *)p->data)->train_no);
 	}
 	p = p->next;
@@ -451,7 +451,7 @@ int get_passenger_dtos(const char *repeat_token)
 
     cJSON *root, *status, *data;
     root = cJSON_Parse(chunk.memory);
-    if(!root) {
+    if(cJSON_IsNull(root)) {
 	return 1;
     }
     status = cJSON_GetObjectItem(root, "status");
@@ -609,7 +609,7 @@ int perform_request(const char *url, enum request_type type, void *post, struct 
 
 bool current_train_has_prefix_ticket(struct train_info *ptrain)
 {
-    if(config._prefer_seat_type_all[true] == 0) {
+    if(config._prefer_seat_type_all[0] == 0) {
 	return true;
     } else if(strstr(config._prefer_seat_type_all, "M") != NULL &&  (ptrain->zy_num[0] != '\0' && strcmp(ptrain->zy_num, "无"))) {
 	return true;
@@ -766,9 +766,7 @@ int query_ticket()
 	    cJSON_Delete(root);
 	    continue;
 	}
-	if(!cmd_opt.queit) {
-	    print_train_info(t_info);
-	}
+	cmd_opt.queit ? 0 : print_train_info(t_info);
 	if(!cmd_opt.query_only && process_train(t_info) == 0) {
 	    cJSON_Delete(root);
 	    return 0;
@@ -852,8 +850,8 @@ int init_my12306()
     char url[128];
     char param[64];
 
-    snprintf(url, sizeof(url), BASEURL"passport?redirect=/otn/login/userLogin");
-    perform_request(url, GET, NULL, nxt);
+    //snprintf(url, sizeof(url), BASEURL"passport?redirect=/otn/login/userLogin");
+    //perform_request(url, GET, NULL, nxt);
     snprintf(url, sizeof(url), "https://kyfw.12306.cn/passport/web/auth/uamtk");
     perform_request(url, POST, (void *)"appid=otn", nxt);
 
@@ -1052,7 +1050,9 @@ int check_order_info(cJSON *json)
     char *url_encode_passenger = curl_easy_escape(curl, tinfo.passenger_tickets, strlen(tinfo.passenger_tickets));
     get_old_passenger_for_submit();
     char *url_encode_old_passenger = curl_easy_escape(curl, tinfo.old_passenger, strlen(tinfo.old_passenger));
-    snprintf(param, sizeof(param), "cancel_flag=2&bed_level_order_num=000000000000000000000000000000&passengerTicketStr=%s&oldPassengerStr=%s&tour_flag=dc&randCode=&whatsSelect=1&_json_att=&REPEAT_SUBMIT_TOKEN=%s", url_encode_passenger, url_encode_old_passenger, tinfo.repeat_submit_token);
+    snprintf(param, sizeof(param), "cancel_flag=2&bed_level_order_num=000000000000000000000000000000&passengerTicketStr=%s&"
+	    "oldPassengerStr=%s&tour_flag=dc&randCode=&whatsSelect=1&_json_att=&REPEAT_SUBMIT_TOKEN=%s", 
+	    url_encode_passenger, url_encode_old_passenger, tinfo.repeat_submit_token);
 
     curl_free(url_encode_passenger);
     curl_free(url_encode_old_passenger);
@@ -1216,7 +1216,8 @@ int get_queue_count(cJSON *json, struct train_info *t_info)
     get_train_date_format(json, date_format, sizeof(date_format));
     
     snprintf(url, sizeof(url), BASEURL"confirmPassenger/getQueueCount");
-    snprintf(param, sizeof(param), "train_date=%s&train_no=%s&stationTrainCode=%s&seatType=%s&fromStationTelecode=%s&toStationTelecode=%s&leftTicket=%s&purpose_codes=00&train_location=%s&_json_att=&REPEAT_SUBMIT_TOKEN=%s", 
+    snprintf(param, sizeof(param), "train_date=%s&train_no=%s&stationTrainCode=%s&seatType=%s&fromStationTelecode=%s&"
+	    "toStationTelecode=%s&leftTicket=%s&purpose_codes=00&train_location=%s&_json_att=&REPEAT_SUBMIT_TOKEN=%s", 
 	    date_format, t_info->train_no, 
 	    t_info->station_train_code, tinfo.seat_type, 
 	    t_info->from_station_telecode, t_info->to_station_telecode, 
@@ -1370,7 +1371,8 @@ int query_order_wait_time()
     srand(tvnow);
     snprintf(time_num, sizeof(time_num), "%ld%d", tvnow, rand() % 1000);
 
-    snprintf(url, sizeof(url), "%s?random=%s&tourFlag=dc&_json_att=&REPEAT_SUBMIT_TOKEN=%s", BASEURL"confirmPassenger/queryOrderWaitTime", time_num, tinfo.repeat_submit_token); 
+    snprintf(url, sizeof(url), "%s?random=%s&tourFlag=dc&_json_att=&REPEAT_SUBMIT_TOKEN=%s", 
+	    BASEURL"confirmPassenger/queryOrderWaitTime", time_num, tinfo.repeat_submit_token); 
 
     if(perform_request(url, GET, NULL, nxt) < 0) {
 	return -1;
@@ -1405,7 +1407,7 @@ int query_order_wait_time()
     if(waitTime->valueint == -2) {
 	cJSON *msg = cJSON_GetObjectItem(data, "msg");
 	if(cJSON_IsString(msg)) {
-	    printf("%s\n", msg->valuestring);
+	    printf("error: %s\n", msg->valuestring);
 	}
     }
     cJSON_Delete(root);
@@ -1511,13 +1513,13 @@ int submit_order_request(struct train_info *t_info)
 	    cJSON_Delete(root);
 	    return 1;
 	}
-	printf("系统出票成功，预订已完成，请在30分钟内支付以完成订单\n");
+	printf("系统出票成功，请在30分钟内登陆kyfw.12306.cn支付订单\n");
 	if(config._mail_username[0] != 0 && config._mail_password[0] != 0 && config._mail_server[0] != 0) {
 	    if(sendmail(&config, ptrain->station_train_code, ptrain->from_station_name, ptrain->to_station_name,
 			ptrain->start_train_date, ptrain->start_time) == CURLE_OK) {
-		printf("email has been send.\n");
+		printf("邮件已发送\n");
 	    } else {
-		printf("send email failed.\n");
+		printf("发送邮件失败\n");
 	    }
 	}
 	//result_order_for_dc_queue(tinfo.order_no);
