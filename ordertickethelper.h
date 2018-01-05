@@ -22,6 +22,7 @@
 #define TARGETDOMAIN "https://kyfw.12306.cn/"
 #define BASEURL "https://kyfw.12306.cn/otn/"
 #define APPVERSION "0.0.1.0"
+#define SMOFFSET(TYPE_T,MEMBER) (unsigned long)(&((TYPE_T *)0)->MEMBER)
 
 struct passenger_info {
     char code[4];
