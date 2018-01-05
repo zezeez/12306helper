@@ -666,9 +666,12 @@ int process_prefix_train_no(struct train_info *ptrain)
 	    if(pt->can_web_buy[0] == 'Y' &&
 		    strcmp(config._prefer_train_no[i], pt->station_train_code) == 0 &&
 		    current_train_has_prefix_ticket(pt) &&
-		    !current_train_is_at_black_list(pt) &&
-		    submit_order_request(pt) == 0) {
-		return 0;
+		    !current_train_is_at_black_list(pt)) {
+		if(submit_order_request(pt) == 0) {
+		    return 0;
+		} else {
+		    sleep(1);
+		}
 	    }
 	    pt++;
 	}
@@ -705,9 +708,12 @@ int process_prefix_train_type(struct train_info *ptrain)
 		    config._prefer_train_type[i][0] == pt->station_train_code[0] &&
 		    current_train_is_at_prefix_time(pt) &&
 		    current_train_has_prefix_ticket(pt) &&
-		    !current_train_is_at_black_list(pt) &&
-		    submit_order_request(pt) == 0) {
-		return 0;
+		    !current_train_is_at_black_list(pt)) {
+		if(submit_order_request(pt) == 0) {
+		    return 0;
+		} else {
+		    sleep(1);
+		}
 	    }
 	    pt++;
 	}
@@ -723,9 +729,12 @@ int process_not_prefix_train(struct train_info *ptrain)
 	if(pt->can_web_buy[0] == 'Y' &&
 		current_train_is_at_prefix_time(pt) &&
 		current_train_has_prefix_ticket(pt) &&
-		!current_train_is_at_black_list(pt) &&
-		submit_order_request(pt) == 0) {
-	    return 0;
+		!current_train_is_at_black_list(pt)) {
+	    if(submit_order_request(pt) == 0) {
+		return 0;
+	    } else {
+		sleep(1);
+	    }
 	}
 	pt++;
     }
