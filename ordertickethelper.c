@@ -1524,7 +1524,7 @@ int submit_order_request(struct train_info *t_info)
 	    cJSON_Delete(root);
 	    return ret;
 	}
-	printf("正在确认订单请求...\n");
+	/*printf("正在确认订单请求...\n");
 	if(confirm_single_queue(ptrain) != 0) {
 	    cJSON_Delete(root);
 	    return 1;
@@ -1552,7 +1552,7 @@ int submit_order_request(struct train_info *t_info)
 	    } else {
 		printf("发送邮件失败\n");
 	    }
-	}
+	}*/
 	//result_order_for_dc_queue(tinfo.order_no);
 	cJSON_Delete(root);
 	return 0;
