@@ -18,7 +18,6 @@
 #include "config.h"
 #include "common_list.h"
 
-#define USE_COOKIE 1
 #define TARGETDOMAIN "https://kyfw.12306.cn/"
 #define BASEURL "https://kyfw.12306.cn/otn/"
 #define APPVERSION "0.0.1.0"

@@ -1,7 +1,15 @@
-CFLAGS = -Wall -g -fstack-protector-strong 
-LFLAGS = -lcurl
-DFLAGS = 
-tickethelper: ordertickethelper.c utils.c cJSON.c varification.c config.c sendmail.c
-	gcc `pkg-config --cflags gtk+-3.0` `pkg-config --libs gtk+-3.0` ordertickethelper.c varification.c cJSON.c utils.c config.c common_list.c sendmail.c -o tickethelper $(CFLAGS) $(LFLAGS) $(DFLAGS)
+CFLAGS = `pkg-config --cflags gtk+-3.0` -Wall -g
+LFLAGS = `pkg-config --libs gtk+-3.0` -lcurl
+DFLAGS = -DUSE_COOKIE
+BUILD_OBJS = ordertickethelper.c \
+	     utils.c \
+	     cJSON.c \
+	     varification.c \
+	     config.c \
+	     sendmail.c \
+	     common_list.c
+
+tickethelper: $(BUILD_OBJS)
+	gcc $(CFLAGS) $(DFLAGS) $(BUILD_OBJS) -o $@ $(LFLAGS)
 clean:
 	rm tickethelper
