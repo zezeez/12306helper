@@ -24,7 +24,7 @@ int main(int argc, char *argv[])
 		print_app_version();
 		break;
 	    case '?':
-		break;
+		exit(1);
 	    default:
 		break;
 	}
@@ -49,7 +49,7 @@ int main(int argc, char *argv[])
 	return 1;
     }
 
-    if(!cmd_opt.query_only && check_user_is_login() != 0) {
+    if(!cmd_opt.query_only && check_user() != 0) {
 	printf("当前用户未登陆，开始登陆...\n");
 	if(user_login() != 0) {
 	    do_cleanup();
@@ -293,7 +293,6 @@ start_login()
     }
     cJSON *ret_json = cJSON_Parse(chunk.memory);
     if(cJSON_IsNull(ret_json)) {
-	fprintf(stderr, "error while parse json data.\n");
 	return -1;
     }
     cJSON *ret_code = cJSON_GetObjectItem(ret_json, "result_code");
@@ -456,24 +455,46 @@ int get_passenger_dtos(const char *repeat_token)
     }
     status = cJSON_GetObjectItem(root, "status");
     if(!cJSON_IsTrue(status)) {
-	cJSON_Delete(root);
-	return 1;
+	goto failed;
     }
     data = cJSON_GetObjectItem(root, "data");
-    if(!data) {
-	cJSON_Delete(root);
-	return 1;
+    if(cJSON_IsNull(data)) {
+	goto failed;
     }
     cJSON *normal_passengers = cJSON_GetObjectItem(data, "normal_passengers");
-    if(!normal_passengers) {
-	cJSON_Delete(root);
-	return 1;
+    if(cJSON_IsNull(normal_passengers)) {
+	goto failed;
     }
-    int i, size;
+    int i, j, size;
     size = cJSON_GetArraySize(normal_passengers);
+    const unsigned long p_offset[] = {
+	SMOFFSET(struct passenger_info,code), SMOFFSET(struct passenger_info,passenger_name), SMOFFSET(struct passenger_info,sex_code),
+	SMOFFSET(struct passenger_info,sex_name), SMOFFSET(struct passenger_info,born_date),SMOFFSET(struct passenger_info,country_code), 
+	SMOFFSET(struct passenger_info,passenger_id_type_code), SMOFFSET(struct passenger_info,passenger_id_type_name),
+	SMOFFSET(struct passenger_info,passenger_id_no), SMOFFSET(struct passenger_info,passenger_type), SMOFFSET(struct passenger_info,passenger_flag),
+	SMOFFSET(struct passenger_info,passenger_type_name), SMOFFSET(struct passenger_info,mobile_no), SMOFFSET(struct passenger_info,phone_no),
+	SMOFFSET(struct passenger_info,email), SMOFFSET(struct passenger_info,address), SMOFFSET(struct passenger_info,postalcode),
+	SMOFFSET(struct passenger_info,first_letter), SMOFFSET(struct passenger_info,record_count), SMOFFSET(struct passenger_info,total_times),
+	SMOFFSET(struct passenger_info,index_id)
+    };
+    const char * const index_name[] = {
+	"code", "passenger_name", "sex_code", "sex_name", "born_date",
+	"country_code", "passenger_id_type_code", "passenger_id_type_name", "passenger_id_no", "passenger_type",
+	"passenger_flag", "passenger_type_name", "mobile_no", "phone_no", "email",
+	"address", "postalcode", "first_letter", "recordCount", "total_times",
+	"index_id", NULL
+    };
+
     for(i = 0; i < size; i++) {
 	cJSON *passenger = cJSON_GetArrayItem(normal_passengers, i);
-	cJSON *param = cJSON_GetObjectItem(passenger, "code");
+	for(j = 0; index_name[j]; j++) {
+	    cJSON *param = cJSON_GetObjectItem(passenger, index_name[j]);
+	    if(cJSON_IsString(param)) {
+		strcpy(((*pinfo).code + i * sizeof(struct passenger_info) + p_offset[j]), param->valuestring);
+			//index_name[j + 1] ? p_offset[j + 1] - p_offset[j] : sizeof(struct passenger_info) - p_offset[j]);
+	    }
+	}
+	/*cJSON *param = cJSON_GetObjectItem(passenger, "code");
 	if(cJSON_IsString(param)) {
 	    strncpy(pinfo[i].code, param->valuestring, sizeof(pinfo->code));
 	}
@@ -556,11 +577,14 @@ int get_passenger_dtos(const char *repeat_token)
 	param = cJSON_GetObjectItem(passenger, "index_id");
 	if(cJSON_IsString(param)) {
 	    strncpy(pinfo[i].index_id, param->valuestring, sizeof(pinfo->index_id));
-	}
+	}*/
     }
     memset(pinfo + i, 0, sizeof(struct passenger_info));
     cJSON_Delete(root);
     return 0;
+failed:
+    cJSON_Delete(root);
+    return 1;
 }
 
 void print_train_info(struct train_info *info)
@@ -835,14 +859,11 @@ int check_user()
 	    if(cJSON_IsTrue(flag)) {
 		cJSON_Delete(root);
 		return 0;
-	    } else {
-		cJSON_Delete(root);
-		return 1;
 	    }
 	}
     }
     cJSON_Delete(root);
-    return -1;
+    return 1;
 }
 
 int init_my12306()
@@ -1073,13 +1094,11 @@ int check_order_info(cJSON *json)
 	if(!cJSON_IsNull(data)) {
 	    submit_status = cJSON_GetObjectItem(data, "submitStatus");
 	    if(!cJSON_IsTrue(submit_status)) {
-		cJSON_Delete(root);
-		return 1;
+		goto failed;
 	    }
 	    cJSON *ifShowPassCode = cJSON_GetObjectItem(data, "ifShowPassCode");
 	    if(!cJSON_IsString(ifShowPassCode)) {
-		cJSON_Delete(root);
-		return 1;
+		goto failed;
 	    }
 	    if(ifShowPassCode->valuestring[0] == 'Y') {
 		cJSON_Delete(root);
@@ -1090,6 +1109,7 @@ int check_order_info(cJSON *json)
 	    }
 	}
     }
+failed:
     cJSON_Delete(root);
     return 1;
 }
@@ -1263,12 +1283,14 @@ int get_queue_count(cJSON *json, struct train_info *t_info)
 	printf("余票不足，将%s加入黑名单%d秒\n", 
 		t_info->station_train_code, config._block_time);
 	add_train_to_black_list(t_info);
+	cJSON_Delete(root);
 	return 5;
     }
     if(strcmp(ticket_str->valuestring, "0") == 0) {
 	printf("该数据为缓存，将%s加入黑名单%d秒\n", 
 		t_info->station_train_code, config._block_time);
 	add_train_to_black_list(t_info);
+	cJSON_Delete(root);
 	return 6;
     }
     cJSON *countT_str = cJSON_GetObjectItem(data, "countT");
@@ -1279,6 +1301,7 @@ int get_queue_count(cJSON *json, struct train_info *t_info)
     printf("当前排队人数：%s\n", countT_str->valuestring);
     int cur_queue_count = (int)strtol(countT_str->valuestring, NULL, 10);
     if(cur_queue_count > config._max_queue_count) {
+	cJSON_Delete(root);
 	return 3;
     }
     cJSON *op2_str = cJSON_GetObjectItem(data, "op_2");
@@ -1290,9 +1313,11 @@ int get_queue_count(cJSON *json, struct train_info *t_info)
 	printf("当前排队人数超过余票张数，该数据为缓存，将%s加入黑名单%d秒\n", 
 		t_info->station_train_code, config._block_time);
 	add_train_to_black_list(t_info);
+	cJSON_Delete(root);
 	return 2;
     }
 
+    cJSON_Delete(root);
     return 0;
 }
 
@@ -1346,6 +1371,7 @@ int confirm_single_queue(struct train_info *t_info)
 	return 1;
     }
     if(cJSON_IsNull(data)) {
+	cJSON_Delete(root);
 	return 1;
     }
     cJSON *submit_status = cJSON_GetObjectItem(data, "submitStatus");
@@ -1356,8 +1382,10 @@ int confirm_single_queue(struct train_info *t_info)
 	}
 	printf("订单确认失败，将%s加入黑名单%d秒\n", t_info->station_train_code, config._block_time);
 	add_train_to_black_list(t_info);
+	cJSON_Delete(root);
 	return 1;
     }
+    cJSON_Delete(root);
     return 0;
 }
 
@@ -1451,6 +1479,7 @@ int submit_order_request(struct train_info *t_info)
 	}
 	if(get_left_ticket_str(root) != 0) {
 	    printf("获取预提交令牌环失败\n");
+	    cJSON_Delete(root);
 	    return 1;
 	}
 	printf("正在获取乘车人信息...\n");
@@ -1461,7 +1490,7 @@ int submit_order_request(struct train_info *t_info)
 		printf("No such passenger: %s\n", config._passenger_name[i]);
 		i++;
 	    }
-	    printf("Avalible passsengers are list below:\n");
+	    printf("Available passsengers are list below:\n");
 	    i = 0;
 	    while(pinfo[i].code[0]) {
 		printf("%s\n", pinfo[i].passenger_name);
@@ -1484,8 +1513,10 @@ int submit_order_request(struct train_info *t_info)
 	} else if(ret == 3) {
 	    printf("将%s加入黑名单%d秒\n", t_info->station_train_code, config._block_time);
 	    add_train_to_black_list(t_info);
+	    cJSON_Delete(root);
 	    return 1;
 	} else {
+	    cJSON_Delete(root);
 	    return 1;
 	}
 	printf("正在获取排队人数...\n");
