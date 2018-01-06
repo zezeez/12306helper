@@ -297,7 +297,6 @@ start_login()
 	return -1;
     }
     cJSON *ret_json = cJSON_Parse(chunk.memory);
-    printf("login result: %s\n", chunk.memory);
     if(cJSON_IsNull(ret_json)) {
 	return 1;
     }
@@ -315,9 +314,12 @@ start_login()
 	    cJSON_Delete(ret_json);
 	    return 0;
 	} else {
-	    cJSON *errMsg = cJSON_GetObjectItem(data, "otherMsg");
-	    if(cJSON_IsString(errMsg)) {
-		printf("error: %s\n", errMsg->valuestring);
+	    cJSON *errmsg_array = cJSON_GetObjectItem(ret_json, "messages");
+	    if(!cJSON_IsNull(errmsg_array)) {
+		cJSON *errmsg = cJSON_GetArrayItem(errmsg_array, 0);
+		if(cJSON_IsString(errmsg)) {
+		    printf("error: %s\n", errmsg->valuestring);
+		}
 	    }
 	}
     }

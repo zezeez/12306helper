@@ -173,7 +173,6 @@ do_varification(void *user_data)
 	return -1;
     }
     cJSON *ret_json = cJSON_Parse(tres->tdata->r_data->memory);
-    printf("varification result: %s\n", tres->tdata->r_data->memory);
 
     if(cJSON_IsNull(ret_json)) {
 	fprintf(stderr, "cJSON_Parse: %s\n", cJSON_GetErrorPtr());
