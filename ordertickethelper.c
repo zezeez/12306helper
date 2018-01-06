@@ -1,5 +1,7 @@
 #include "ordertickethelper.h"
 
+extern char rand_code[128];
+
 int main(int argc, char *argv[])
 {
     int c;
@@ -285,24 +287,35 @@ start_login()
     char url[64];
     char post_data[256];
 
-    snprintf(url, sizeof(url), "https://kyfw.12306.cn/passport/web/login");
-    snprintf(post_data, sizeof(post_data), "username=%s&password=%s&appid=otn", config._username, config._password);
+    //snprintf(url, sizeof(url), TARGETDOMAIN"passport/web/login");
+    //snprintf(post_data, sizeof(post_data), "username=%s&password=%s&appid=otn", config._username, config._password);
+    snprintf(url, sizeof(url), BASEURL"login/loginAysnSuggest");
+    snprintf(post_data, sizeof(post_data), "loginUserDTO.user_name=%s&userDTO.password=%s&randCode=%s", 
+	    config._username, config._password, rand_code);
 
     if(perform_request(url, POST, post_data, nxt) < 0) {
 	return -1;
     }
     cJSON *ret_json = cJSON_Parse(chunk.memory);
+    printf("login result: %s\n", chunk.memory);
     if(cJSON_IsNull(ret_json)) {
-	return -1;
+	return 1;
     }
-    cJSON *ret_code = cJSON_GetObjectItem(ret_json, "result_code");
-    if(cJSON_IsNumber(ret_code)) {
-	if(ret_code->valueint == 0) {
+    //cJSON *ret_code = cJSON_GetObjectItem(ret_json, "result_code");
+    cJSON *status = cJSON_GetObjectItem(ret_json, "status");
+    if(cJSON_IsTrue(status)) {
+	cJSON *data = cJSON_GetObjectItem(ret_json, "data");
+	if(cJSON_IsNull(data)) {
+	    cJSON_Delete(ret_json);
+	    return 1;
+	}
+	cJSON *login_check = cJSON_GetObjectItem(data, "loginCheck");
+	if(cJSON_IsString(login_check) && strcmp(login_check->valuestring, "Y") == 0) {
 	    init_my12306();
 	    cJSON_Delete(ret_json);
 	    return 0;
 	} else {
-	    cJSON *errMsg = cJSON_GetObjectItem(ret_json, "result_message");
+	    cJSON *errMsg = cJSON_GetObjectItem(data, "otherMsg");
 	    if(cJSON_IsString(errMsg)) {
 		printf("error: %s\n", errMsg->valuestring);
 	    }

@@ -32,6 +32,7 @@ int get_current_position();
 void clear_selection(struct thread_res *);
 
 static gboolean success = FALSE;
+char rand_code[128];
 
 static gboolean
 button_press_event_cb (GtkWidget      *widget,
@@ -136,7 +137,8 @@ do_varification(void *user_data)
     char *p_str_cor = str_cor;
     struct thread_res *tres = (struct thread_res *) user_data;
 
-    snprintf(url, sizeof(url), "https://kyfw.12306.cn/passport/captcha/captcha-check");
+    //snprintf(url, sizeof(url), "https://kyfw.12306.cn/passport/captcha/captcha-check");
+    snprintf(url, sizeof(url), "https://kyfw.12306.cn/otn/passcodeNew/checkRandCodeAnsyn");
     memset(str_cor, 0, sizeof(str_cor));
 
     for(i = 0; i < 8; i++) {
@@ -153,11 +155,17 @@ do_varification(void *user_data)
     char *urlencode = curl_easy_escape(tres->tdata->curl, str_cor, strlen(str_cor));
     char post_data[64];
 
-    if(tres->tdata->auth_type == 0) {
+    /*if(tres->tdata->auth_type == 0) {
 	snprintf(post_data, sizeof(post_data), "answer=%s&login_site=E&rand=sjrand", urlencode);
     } else {
 	snprintf(post_data, sizeof(post_data), "answer=%s&login_site=E&rand=randp", urlencode);
+    }*/
+    if(tres->tdata->auth_type == 0) {
+	snprintf(post_data, sizeof(post_data), "randCode=%s&rand=sjrand", urlencode);
+    } else {
+	snprintf(post_data, sizeof(post_data), "randCode=%s&rand=randp", urlencode);
     }
+    strncpy(rand_code, urlencode, sizeof(rand_code));
     curl_free(urlencode);
 
     if(perform_request(url, POST, post_data, tres->tdata->nxt) < 0) {
@@ -165,21 +173,36 @@ do_varification(void *user_data)
 	return -1;
     }
     cJSON *ret_json = cJSON_Parse(tres->tdata->r_data->memory);
-    if(!ret_json) {
+    printf("varification result: %s\n", tres->tdata->r_data->memory);
+
+    if(cJSON_IsNull(ret_json)) {
 	fprintf(stderr, "cJSON_Parse: %s\n", cJSON_GetErrorPtr());
 	return -1;
     }
-    cJSON *ret_code = cJSON_GetObjectItem(ret_json, "result_code");
+    cJSON *status = cJSON_GetObjectItem(ret_json, "status");
+    if(!cJSON_IsTrue(status)) {
+	cJSON_Delete(ret_json);
+	return -1;
+    }
+    cJSON *data = cJSON_GetObjectItem(ret_json, "data");
+    if(cJSON_IsNull(data)) {
+	cJSON_Delete(ret_json);
+	return -1;
+    }
+    //cJSON *ret_code = cJSON_GetObjectItem(ret_json, "result_code");
+    cJSON *ret_code = cJSON_GetObjectItem(data, "result");
     if(!cJSON_IsString(ret_code)) {
 	fprintf(stderr, "error parse json data\n");
 	cJSON_Delete(ret_json);
 	return -1;
     }
-    if(strcmp(ret_code->valuestring, "4") == 0) {
+    //if(strcmp(ret_code->valuestring, "4") == 0) {
+    if(strcmp(ret_code->valuestring, "1") == 0) {
 	cJSON_Delete(ret_json);
 	return 0;
     } else {
-	cJSON *errMsg = cJSON_GetObjectItem(ret_json, "result_message");
+	//cJSON *errMsg = cJSON_GetObjectItem(ret_json, "result_message");
+	cJSON *errMsg = cJSON_GetObjectItem(data, "msg");
 	if(cJSON_IsString(errMsg)) {
 	    printf("error: %s\n", errMsg->valuestring);
 	}
@@ -219,9 +242,11 @@ refresh(GtkWidget *widget,
 
     num = rand() / RAND_MAX;
     if(tres->tdata->auth_type == 0) {
-	snprintf(url, sizeof(url), "https://kyfw.12306.cn/passport/captcha/captcha-image?login_site=E&module=login&rand=sjrand&%.16lf", num);
+	//snprintf(url, sizeof(url), "https://kyfw.12306.cn/passport/captcha/captcha-image?login_site=E&module=login&rand=sjrand&%.16lf", num);
+	snprintf(url, sizeof(url), "https://kyfw.12306.cn/otn/passcodeNew/getPassCodeNew?&module=login&rand=sjrand&%.16lf", num);
     } else {
-	snprintf(url, sizeof(url), "https://kyfw.12306.cn/passport/captcha/captcha-image?login_site=E&module=passenger&rand=randp&%.16lf", num);
+	//snprintf(url, sizeof(url), "https://kyfw.12306.cn/passport/captcha/captcha-image?login_site=E&module=passenger&rand=randp&%.16lf", num);
+	snprintf(url, sizeof(url), "https://kyfw.12306.cn/otn/passcodeNew/getPassCodeNew?&module=passenger&rand=randp&%.16lf", num);
     }
 
 
@@ -255,9 +280,11 @@ void on_active(GtkWidget *window, void *user_data)
     num = (double)rand() / RAND_MAX;
 
     if(tres->tdata->auth_type == 0) {
-	snprintf(url, sizeof(url), "https://kyfw.12306.cn/passport/captcha/captcha-image?login_site=E&module=login&rand=sjrand&%.16lf", num);
+	//snprintf(url, sizeof(url), "https://kyfw.12306.cn/passport/captcha/captcha-image?login_site=E&module=login&rand=sjrand&%.16lf", num);
+	snprintf(url, sizeof(url), "https://kyfw.12306.cn/otn/passcodeNew/getPassCodeNew?&module=login&rand=sjrand&%.16lf", num);
     } else {
-	snprintf(url, sizeof(url), "https://kyfw.12306.cn/passport/captcha/captcha-image?login_site=E&module=passenger&rand=randp&%.16lf", num);
+	//snprintf(url, sizeof(url), "https://kyfw.12306.cn/passport/captcha/captcha-image?login_site=E&module=passenger&rand=randp&%.16lf", num);
+	snprintf(url, sizeof(url), "https://kyfw.12306.cn/otn/passcodeNew/getPassCodeNew?&module=passenger&rand=randp&%.16lf", num);
     }
 
     if(perform_request(url, GET, NULL, tres->tdata->nxt) < 0) {
