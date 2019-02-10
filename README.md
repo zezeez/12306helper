@@ -11,7 +11,7 @@
   <pre>git clone https://github.com/liujianjia/12306ticket.git</pre>
   <p>or download zip package and extract it</p>
   <p>Enter project directory</p>
-  <pre>cd 12306ticket</pre>
+  <pre>cd 12306helper</pre>
   <p>Build project</p>
   <pre>make</pre>
   <p>If everything is ok, there is an executable file which name is <em>tickethelper</em> generated<p>
